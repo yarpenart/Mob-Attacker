@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.1.0
+# YarpenArt: Mob Attacker — 0.1.1
 
 Moduł dla **Foundry VTT v14 / D&D5e 5.3.3**. Zastępuje rzuty na trafienie hordy tabelą Mob Attacks z 2014 r. Rzuca obrażenia automatycznie po przekroczeniu progu. Wymaga **libWrapper**. Dice So Nice jest opcjonalne; obrażenia korzystają ze standardowych rzutów systemu.
 
@@ -14,11 +14,20 @@ Instalacja przez manifest (Foundry / Forge):
 https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 ```
 
-Wydanie v0.1.0: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.0 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+Wydanie v0.1.1: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.1 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+
+## Zmiany w 0.1.1
+
+- Naprawiono obsługę komend czatu w Foundry v14: `/horde` jest przechwytywane przed walidacją wbudowanych komend, zamiast polegać na starym hooku `chatMessage`.
+- Naprawiono błąd `key.split is not a function` podczas otwierania ataku: etykiety widoczności są odczytywane z obiektów konfiguracji Foundry, z obsługą starszych etykiet tekstowych.
+- Zaznacz wiele tokenów NPC i kliknij ikonę grupy w lewym pasku narzędzi tokenów. Jedno kliknięcie oznacza je jako jedną hordę. Gdy wszystkie są oznaczone, kolejne kliknięcie je odznacza. Przy mieszanym zaznaczeniu oznacza wszystkie. Tokeny postaci graczy są pomijane. Liczebność każdego tokena jest zachowana (domyślnie 1).
+- Alternatywnie użyj przycisku zbiorczego w nagłówku inicjatywy lub `/horde toggle`. Kliknięcie przycisku Horde przy pojedynczym uczestniku od razu przełącza oznaczenie; prawy przycisk otwiera konfigurację.
+- Oznaczony NPC z jednym wskazanym celem używa zwykłego ataku z karty bez dodatkowego okna. Premia i obrażenia pochodzą z aktywności. Okno GM pojawia się, gdy trzeba wybrać cel, lub po włączeniu ustawienia „Pokazuj okno przy każdym ataku oznaczonej hordy”.
+- Wszystkie wyliczenia (KP, tabela, wymagany wynik, liczba trafień, postęp i premie sytuacyjne) trafiają wyłącznie do GM. Zwykłe karty obrażeń zachowują wybraną widoczność i nie mają etykiety Horde ani wyliczeń. Ataki nieoznaczonych NPC domyślnie zachowują standardowy przebieg.
 
 ## Oznaczanie hordy
 
-- W inicjatywie obok NPC jest przycisk **Horde**. Ten sam przycisk jest w HUD tokena i nagłówku karty NPC; pewnym sposobem otwarcia konfiguracji jest również `/horde config` po zaznaczeniu tokena.
+- W inicjatywie obok NPC jest przycisk **Horde**. Konfiguracja jest również w HUD tokena i nagłówku karty NPC; pewnym sposobem otwarcia konfiguracji jest również `/horde config` po zaznaczeniu tokena.
 - Zaznacz **Część hordy**, podaj identyfikator i liczebność.
 - Jeden token jako ośmiu orków: liczebność **8**.
 - Osiem osobnych tokenów: liczebność **1** na każdym i **ten sam identyfikator hordy**. Można łączyć różne stworzenia; ataki z różnymi premiami nadal mają oddzielne liczniki.
@@ -27,13 +36,13 @@ Wydanie v0.1.0: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.0 . 
 
 ## Atak
 
-Wybierz cel standardowym targetowaniem Foundry i użyj przycisku ataku broni, zaklęcia lub zdolności. Przed rzutem pojawi się okno z opcją hordy. Można wybrać cel również w tym oknie. Odznaczenie hordy uruchamia zwykły rzut systemu.
+Wybierz cel standardowym targetowaniem Foundry i użyj przycisku ataku broni, zaklęcia lub zdolności. Dla oznaczonej hordy z jednym wskazanym celem rozpatrywanie następuje od razu. Jeśli celu brakuje lub zaznaczono wiele celów, pojawia się okno GM. Dodatkowe okno przy każdym ataku można włączyć w ustawieniach. Odznaczenie hordy przywraca zwykły rzut systemu.
 
-Po włączeniu hordy moduł odczytuje KP wybranego celu i formułę premii z aktywności D&D5e. Wybór trybu broni i amunicji przelicza niezmienione ręcznie pole premii. Można wpisać premię sytuacyjną ręcznie. Dodatkowe kości, np. `5+1d4`, są rzucane **raz dla całej rozpatrywanej grupy**, z wybraną widocznością.
+Po włączeniu hordy moduł odczytuje KP wybranego celu i formułę premii z aktywności D&D5e. Wybór trybu broni i amunicji przelicza niezmienione ręcznie pole premii. Można wpisać premię sytuacyjną ręcznie. Dodatkowe kości, np. `5+1d4`, są rzucane **raz dla całej rozpatrywanej grupy**, wyłącznie dla GM.
 
 Nie ma rzutu k20. Każde trafienie wywołuje osobny standardowy rzut obrażeń aktywności, zachowując typy obrażeń, wybrany tryb broni, amunicję i dane skalowanego zaklęcia. Trafienia bez komponentu obrażeń są tylko raportowane. Efekty niedające obrażeń trzeba zastosować ręcznie. Obrażenia nie odejmują automatycznie PŻ — użyj zwykłego sposobu aplikowania obrażeń w D&D5e. Moduł nie wymaga ani nie deklaruje integracji z Midi-QOL.
 
-**Ataki każdego stworzenia** pozwalają rozpatrzyć kilka identycznych ataków naraz. Jeśli Multiattack zawiera różne aktywności, uruchamiaj je osobno. Nie ustawiaj tutaj dwóch ataków, jeśli następnie uruchomisz je ponownie przez przyciski Multiattack.
+**Ataki każdego stworzenia** pozwalają rozpatrzyć kilka identycznych ataków naraz. Jeśli Multiattack zawiera różne aktywności, uruchamiaj je osobno. Nie ustawiaj tutaj dwóch ataków, jeśli następnie uruchomisz je ponownie przez przyciski Multiattack. Ustawienia wielu identycznych ataków są dostępne w oknie GM, które można włączyć w ustawieniach modułu.
 
 ## Liczniki i multiatak
 
@@ -86,9 +95,9 @@ Pozostałe komendy:
 /horde reset    wyzeruj bieżące liczniki
 ```
 
-## Zakres i ograniczenia wersji 0.1.0
+## Zakres i ograniczenia wersji 0.1.1
 
-- **Obsługa przez GM.** Przy kilku aktywnych GM operacje hordy wykonuje GM z pierwszym alfabetycznie ID użytkownika. Pozwala to uniknąć nadpisywania wspólnych liczników. Pozostali mogą normalnie wykonywać ataki spoza hordy. Komunikaty i obrażenia respektują wybraną widoczność rzutu.
+- **Obsługa przez GM.** Przy kilku aktywnych GM operacje hordy wykonuje GM z pierwszym alfabetycznie ID użytkownika. Pozwala to uniknąć nadpisywania wspólnych liczników. Pozostali mogą normalnie wykonywać ataki spoza hordy. Wyliczenia i komunikaty reguł są zawsze szeptem do GM. Wybrana widoczność dotyczy samych obrażeń.
 - Integracja dotyczy aktywności **attack**: broni, ataków zaklęć, ataków zdolności. Zaklęcia na rzut obronny, obszarowe i z automatycznym trafieniem zachowują standardowy przebieg. Tabela KP nie zastępuje ich zasad.
 - Brak krytyków, przewagi i utrudnienia w wyliczaniu trafień hordy, zgodnie z uproszczoną tabelą. Dla walki indywidualnej wyłącz hordę.
 - W grupie o różnych obrażeniach moduł wybiera **najwyższe średnie obrażenia** spośród stworzeń składających się na każde trafienie. Zachowuje formułę, typy i dane skalowania wcześniejszego atakującego także po odświeżeniu strony. Dla standardowych formuł typu `2d6+3` średnia jest dokładna. Dla niestandardowych formuł z wybieraniem kości, przerzutami lub nieliniowymi operatorami używa przybliżenia `(minimum + maksimum) / 2`. Porównanie nie uwzględnia odporności celu ani warunkowych efektów po trafieniu.
@@ -99,7 +108,7 @@ Pozostałe komendy:
 
 ## English quick start
 
-Enable libWrapper and this module on Foundry v14 with dnd5e 5.3.3. Mark an NPC using **Horde** in initiative, token HUD, the NPC sheet, or `/horde config`. Set the same group identifier for separate tokens; set count to 1 for individual members or to the number represented by one token. Target a creature and use any native attack activity. The module counts hits from the Mob Attacks table and rolls normal activity damage once per hit. HP application remains manual.
+Enable libWrapper and this module on Foundry v14 with dnd5e 5.3.3. Mark an NPC using **Horde** in initiative, token HUD, the NPC sheet, or `/horde config`. Set the same group identifier for separate tokens; set count to 1 for individual members or to the number represented by one token. Select multiple NPC tokens and use the group icon on the Token toolbar to toggle Horde membership in one click. Target a creature and use any native attack activity directly from its sheet. Rules and counters are always whispered to GMs; public damage cards contain only ordinary damage information. The module counts hits from the Mob Attacks table and rolls normal activity damage once per hit. HP application remains manual.
 
 Manual attacks: `/horde 5 | 1d6+3 | 8 | 1 | Orcs`, or `/r 1d20+5 #horde | 1d6+3`. Combat counters reset each round; outside combat use `/horde reset`. Save-based spells retain their normal rules. This initial version is GM-operated, ranks mixed groups by their damage formulas, and has not been run inside a licensed Foundry instance.
 
