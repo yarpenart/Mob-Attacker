@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.1.2
+# YarpenArt: Mob Attacker — 0.1.3
 
 Moduł dla **Foundry VTT v14 / D&D5e 5.3.3**. Zastępuje rzuty na trafienie hordy tabelą Mob Attacks z 2014 r. Rzuca obrażenia automatycznie po przekroczeniu progu. Wymaga **libWrapper**. Dice So Nice jest opcjonalne; obrażenia korzystają ze standardowych rzutów systemu.
 
@@ -14,7 +14,17 @@ Instalacja przez manifest (Foundry / Forge):
 https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 ```
 
-Wydanie v0.1.2: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.2 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+Wydanie v0.1.3: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.3 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+
+## Zmiany w 0.1.3
+
+- **Atakującego wyznacza aktywny uczestnik inicjatywy.** Można pozostawić otwartą kartę pierwszego goblina, przełączyć inicjatywę na drugiego i ponownie użyć tej samej karty. Próba należy do drugiego goblina, a postęp przeciw celowi jest wspólny. Jeśli aktywny NPC ma odpowiadającą broń i aktywność, moduł używa ich danych; w przeciwnym razie traktuje kliknięty atak jako wzorzec.
+- **Limit ataków jest zapisywany dla uczestnika i rundy**, niezależnie od otwartej karty, celu, broni i użytego przycisku. Domyślnie wynosi 1. Kolejne kliknięcia po wyczerpaniu limitu nie zwiększają progresu i nie rzucają obrażeń. W konfiguracji NPC/hordy pole „Ataki na turę w inicjatywie” pozwala ustawić np. 2 dla Multiattack.
+- Zwykły przycisk samych obrażeń na karcie hordy jest blokowany, aby nie omijał rozpatrzenia trafienia. Automatyczny rzut obrażeń nadal korzysta z użytej aktywności.
+- **Wymuś trafienie** jest dostępne w nagłówku karty NPC, w oknie ataku GM oraz przy komunikacie GM po nieudanym ataku. Rzuca obrażenia jednego trafienia i zeruje postęp tej hordy przeciw wskazanemu celowi (także dla pozostałych premii i numerów ataku). Postęp przeciw innym celom pozostaje.
+- Wymuszenie przed atakiem zużywa dostępną próbę. Wymuszenie po ostatniej nieudanej próbie tej tury zamienia ją w trafienie bez ponownego zużycia amunicji. Ponowne wymuszenie tej samej próby jest blokowane. Nie dodaje dodatkowego trafienia do próby, która już trafiła.
+- Zmiana rundy odnawia dostępne ataki uczestnika, ale **nie zeruje postępu przeciw celowi**. Dane postępu z v0.1.2 zostają zachowane.
+- Przycisk wymuszenia na dawnym komunikacie działa tylko, dopóki jego akcja jest dostępna w bieżącej sesji GM i zgadza się aktywna tura. Po odświeżeniu można użyć „Wymuś trafienie” w nagłówku karty.
 
 ## Zmiany w 0.1.2
 
@@ -44,11 +54,11 @@ Wydanie v0.1.2: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.2 . 
 
 ## Atak
 
-Wybierz cel standardowym targetowaniem Foundry i użyj przycisku ataku broni, zaklęcia lub zdolności. Dla oznaczonej hordy z jednym wskazanym celem rozpatrywanie następuje od razu. Jeśli celu brakuje lub zaznaczono wiele celów, pojawia się okno GM. Dodatkowe okno przy każdym ataku można włączyć w ustawieniach. Odznaczenie hordy przywraca zwykły rzut systemu.
+Wybierz cel standardowym targetowaniem Foundry i użyj przycisku ataku broni, zaklęcia lub zdolności. W rozpoczętej walce atak zostanie przypisany aktywnemu uczestnikowi inicjatywy, nawet jeśli korzystasz z karty innego goblina. Domyślnie uczestnik może wykonać jedną próbę w rundzie. Dla Multiattack zwiększ jego pole „Ataki na turę w inicjatywie”. Dla oznaczonej hordy z jednym wskazanym celem rozpatrywanie następuje od razu. Jeśli celu brakuje lub zaznaczono wiele celów, pojawia się okno GM. Dodatkowe okno przy każdym ataku można włączyć w ustawieniach. Odznaczenie hordy przywraca zwykły rzut systemu.
 
 Po włączeniu hordy moduł odczytuje KP wybranego celu i formułę premii z aktywności D&D5e. Wybór trybu broni i amunicji przelicza niezmienione ręcznie pole premii. Można wpisać premię sytuacyjną ręcznie. Dodatkowe kości, np. `5+1d4`, są rzucane **raz dla całej rozpatrywanej grupy**, wyłącznie dla GM.
 
-Nie ma rzutu k20. Każde trafienie wywołuje osobny standardowy rzut obrażeń aktywności, zachowując typy obrażeń, wybrany tryb broni, amunicję i dane skalowanego zaklęcia. Trafienia bez komponentu obrażeń są tylko raportowane. Efekty niedające obrażeń trzeba zastosować ręcznie. Obrażenia nie odejmują automatycznie PŻ — użyj zwykłego sposobu aplikowania obrażeń w D&D5e. Moduł nie wymaga ani nie deklaruje integracji z Midi-QOL.
+Nie ma rzutu k20. Każde trafienie wywołuje osobny standardowy rzut obrażeń aktywności, zachowując typy obrażeń, wybrany tryb broni, amunicję i dane skalowanego zaklęcia. Trafienia bez komponentu obrażeń są tylko raportowane. Efekty niedające obrażeń trzeba zastosować ręcznie. Przycisk samych obrażeń na karcie oznaczonej hordy nie omija mechaniki trafienia; do ręcznego odstępstwa użyj „Wymuś trafienie”. Obrażenia nie odejmują automatycznie PŻ — użyj zwykłego sposobu aplikowania obrażeń w D&D5e. Moduł nie wymaga ani nie deklaruje integracji z Midi-QOL.
 
 **Ataki każdego stworzenia** pozwalają rozpatrzyć kilka identycznych ataków naraz. Jeśli Multiattack zawiera różne aktywności, uruchamiaj je osobno. Nie ustawiaj tutaj dwóch ataków, jeśli następnie uruchomisz je ponownie przez przyciski Multiattack. Ustawienia wielu identycznych ataków są dostępne w oknie GM, które można włączyć w ustawieniach modułu.
 
