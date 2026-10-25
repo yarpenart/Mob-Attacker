@@ -55,6 +55,16 @@
     "unmarkedMany": "Usunięto oznaczenie hordy z {count} tokenów NPC.",
     "quickToggleHint": "Kliknij, aby oznaczyć / odznaczyć hordę. Prawy przycisk: liczebność i grupa.",
     "promptMarked": "Pokazuj okno przy każdym ataku oznaczonej hordy",
-    "promptMarkedHint": "Wyłączone: od razu używaj wskazanego celu i obrażeń ataku z karty. Jeśli nie wybrano jednego celu, otworzy się okno GM."
+    "promptMarkedHint": "Wyłączone: od razu używaj wskazanego celu i obrażeń ataku z karty. Jeśli nie wybrano jednego celu, otworzy się okno GM.",
+    "attackLimit": "Ataki na turę w inicjatywie",
+    "turnSpent": "Ten uczestnik inicjatywy wykorzystał już ataki w tej rundzie. Przejdź do następnego uczestnika lub ustaw jego limit ataków.",
+    "activeNPC": "Aktywnym uczestnikiem inicjatywy musi być NPC z tokenem.",
+    "turnChanged": "W trakcie przygotowania ataku zmieniła się inicjatywa. Powtórz akcję dla aktywnego uczestnika.",
+    "initiativeAttacker": "Atakujący w inicjatywie: {name}",
+    "forceHit": "Wymuś trafienie",
+    "forcedResult": "GM wymusił trafienie. Rzucono obrażenia jednego trafienia i wyzerowano postęp tej hordy przeciw temu celowi.",
+    "damageThroughAttack": "Obrażenia hordy wynikają z rozpatrzonego ataku. Użyj Ataku albo opcji Wymuś trafienie, aby zmienić wynik i wyzerować postęp.",
+    "noAttack": "Na tej karcie NPC nie znaleziono aktywności ataku.",
+    "chooseAttack": "Atak używany do obrażeń"
   }
 }

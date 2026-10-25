@@ -55,6 +55,16 @@
     "unmarkedMany": "Removed Horde marking from {count} NPC tokens.",
     "quickToggleHint": "Click to toggle Horde. Right-click to configure size and group.",
     "promptMarked": "Show a dialog on each marked Horde attack",
-    "promptMarkedHint": "Off: use the selected target and normal attack damage immediately. If there is no single target, the GM target dialog still opens."
+    "promptMarkedHint": "Off: use the selected target and normal attack damage immediately. If there is no single target, the GM target dialog still opens.",
+    "attackLimit": "Attacks per initiative turn",
+    "turnSpent": "This initiative participant has already used its attacks this round. Advance initiative or configure its attack limit.",
+    "activeNPC": "The active initiative participant must be an NPC with a token.",
+    "turnChanged": "Initiative changed while configuring the attack. Repeat the action for the active participant.",
+    "initiativeAttacker": "Initiative attacker: {name}",
+    "forceHit": "Force hit",
+    "forcedResult": "Hit forced by the GM. Rolled one hit and reset this Horde’s progress against this target.",
+    "damageThroughAttack": "Horde damage is rolled by resolving an attack. Use Attack, or Force hit to override the outcome and clear progress.",
+    "noAttack": "No attack activity was found on this NPC sheet.",
+    "chooseAttack": "Attack used for damage"
   }
 }
