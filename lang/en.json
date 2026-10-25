@@ -25,7 +25,7 @@
     "selectSource": "Select exactly one NPC token before continuing.",
     "configHint": "One token representing eight creatures: enter 8. Eight separate tokens: enter 1 on each and use the same Horde identifier. Counters reset every combat round. Outside combat use /horde reset.",
     "attackHint": "Uncheck Horde for a normal attack. Automatic attack numbers separate repeated attacks by the same token. Set the number manually to align split multiattacks. Targets, attack bonuses, AC values and attack numbers have separate counters.",
-    "modeHint": "Bonus dice are rolled once for this group. Changing weapon mode or ammunition recalculates an unchanged bonus field. Advantage, disadvantage and critical hits are not used by this table. Damage is rolled; HP is not changed automatically.",
+    "modeHint": "Bonus dice are rolled once for this group. Changing weapon mode or ammunition recalculates an unchanged bonus field. Advantage, disadvantage and critical hits are not used by this table. Damage is rolled; HP is not changed automatically. This visibility controls damage only. All calculations stay GM-only.",
     "groupInvalid": "Enter a Horde identifier (1–100 characters).",
     "bonusInvalid": "Invalid attack bonus",
     "npcOnly": "Enable Horde on an NPC to use this action.",
@@ -42,12 +42,19 @@
     "resetConfirm": "Reset all Horde counters for the current combat round or scene? This does not undo damage or restore resources.",
     "needed": "d20 needed",
     "threshold": "Attackers per hit",
-    "help": "Select one NPC token. Use /horde config to mark it and set its size. Use a weapon, attack spell or attack ability normally. For a manual attack type /horde BONUS | DAMAGE | CREATURES | ATTACKS | NAME. /horde opens the form; /horde reset resets counters.",
+    "help": "Select one NPC token. Use /horde config to mark it and set its size. Use a weapon, attack spell or attack ability normally. For a manual attack type /horde BONUS | DAMAGE | CREATURES | ATTACKS | NAME. /horde opens the form; /horde reset resets counters. Select multiple NPC tokens and click the group icon on the Token toolbar to toggle them as one Horde. All rules and counters are GM-only.",
     "rulesHint": "A result below the table uses its first row; above 20 uses 20 attackers per hit (natural 20). Saving throw spells and area effects keep their normal rules. No criticals. For mixed groups, the highest average damage profile in each completed group supplies the damage.",
     "libWrapper": "Mob Attacker requires the libWrapper module enabled.",
     "language": "Mob Attacker: language / język",
     "promptUnmarked": "Offer Horde on unmarked NPC attacks",
     "promptHint": "Show a Horde configuration before a normal NPC attack. Disable to prompt only for NPCs already marked as Horde.",
-    "commandInvalid": "Use /horde BONUS | DAMAGE or /r 1d20+BONUS #horde | DAMAGE."
+    "commandInvalid": "Use /horde BONUS | DAMAGE or /r 1d20+BONUS #horde | DAMAGE.",
+    "toggleSelected": "Toggle Horde on selected tokens",
+    "selectMany": "Select at least one NPC token.",
+    "markedMany": "Marked {count} NPC tokens as one Horde.",
+    "unmarkedMany": "Removed Horde marking from {count} NPC tokens.",
+    "quickToggleHint": "Click to toggle Horde. Right-click to configure size and group.",
+    "promptMarked": "Show a dialog on each marked Horde attack",
+    "promptMarkedHint": "Off: use the selected target and normal attack damage immediately. If there is no single target, the GM target dialog still opens."
   }
 }

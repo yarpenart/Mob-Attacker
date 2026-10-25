@@ -25,7 +25,7 @@
     "selectSource": "Zaznacz dokładnie jeden token NPC przed kontynuowaniem.",
     "configHint": "Jeden token reprezentujący osiem stworzeń: wpisz 8. Osiem osobnych tokenów: wpisz po 1 i nadaj im identyczny identyfikator hordy. Liczniki zerują się co rundę. Poza walką użyj /horde reset.",
     "attackHint": "Odznacz hordę, aby wykonać normalny atak. Automatyczny numer rozdziela kolejne ataki tego samego tokena. Możesz ustawić numer ręcznie, aby połączyć ataki rozbitej grupy. Cele, premie do ataku, wartości KP i numery ataku mają osobne liczniki.",
-    "modeHint": "Dodatkowe kości premii rzucane są raz dla grupy. Zmiana trybu broni lub amunicji przelicza nieedytowane pole premii. Tabela nie uwzględnia przewagi, utrudnienia ani trafień krytycznych. Moduł rzuca obrażenia; nie zmienia automatycznie PŻ.",
+    "modeHint": "Dodatkowe kości premii rzucane są raz dla grupy. Zmiana trybu broni lub amunicji przelicza nieedytowane pole premii. Tabela nie uwzględnia przewagi, utrudnienia ani trafień krytycznych. Moduł rzuca obrażenia; nie zmienia automatycznie PŻ. Ta widoczność dotyczy wyłącznie obrażeń. Wszystkie wyliczenia pozostają widoczne tylko dla GM.",
     "groupInvalid": "Wpisz identyfikator hordy (1–100 znaków).",
     "bonusInvalid": "Nieprawidłowa premia do ataku",
     "npcOnly": "Włącz hordę na NPC, aby użyć tej akcji.",
@@ -42,12 +42,19 @@
     "resetConfirm": "Wyzerować liczniki wszystkich hord w tej rundzie lub na scenie? Nie cofa to obrażeń ani zużycia zasobów.",
     "needed": "Wymagany wynik k20",
     "threshold": "Atakujących na trafienie",
-    "help": "Zaznacz jeden token NPC. Użyj /horde config, aby oznaczyć hordę i podać liczebność. Broni, zaklęć z atakiem i zdolności z atakiem używaj normalnie. Ręcznie wpisz /horde PREMIA | OBRAŻENIA | STWORZENIA | ATAKI | NAZWA. /horde otwiera formularz; /horde reset zeruje liczniki.",
+    "help": "Zaznacz jeden token NPC. Użyj /horde config, aby oznaczyć hordę i podać liczebność. Broni, zaklęć z atakiem i zdolności z atakiem używaj normalnie. Ręcznie wpisz /horde PREMIA | OBRAŻENIA | STWORZENIA | ATAKI | NAZWA. /horde otwiera formularz; /horde reset zeruje liczniki. Zaznacz wiele tokenów NPC i kliknij ikonę grupy w narzędziach tokenów, aby oznaczyć je jako jedną hordę. Zasady i liczniki widzi wyłącznie GM.",
     "rulesHint": "Wynik poniżej tabeli używa pierwszego wiersza; powyżej 20 wymaga 20 atakujących (naturalne 20). Zaklęcia na rzut obronny i efekty obszarowe zachowują zwykłe zasady. Bez krytyków. W grupach mieszanych obrażenia pochodzą od stworzenia o najwyższych średnich obrażeniach w danej grupie domykającej próg.",
     "libWrapper": "Mob Attacker wymaga włączonego modułu libWrapper.",
     "language": "Mob Attacker: language / język",
     "promptUnmarked": "Pokazuj opcję hordy przy atakach nieoznaczonych NPC",
     "promptHint": "Pokaż ustawienia hordy przed zwykłym atakiem NPC. Wyłącz, aby wyświetlać je tylko dla oznaczonych NPC.",
-    "commandInvalid": "Użyj /horde PREMIA | OBRAŻENIA lub /r 1d20+PREMIA #horde | OBRAŻENIA."
+    "commandInvalid": "Użyj /horde PREMIA | OBRAŻENIA lub /r 1d20+PREMIA #horde | OBRAŻENIA.",
+    "toggleSelected": "Oznacz / odznacz zaznaczone jako hordę",
+    "selectMany": "Zaznacz przynajmniej jeden token NPC.",
+    "markedMany": "Oznaczono {count} tokenów NPC jako jedną hordę.",
+    "unmarkedMany": "Usunięto oznaczenie hordy z {count} tokenów NPC.",
+    "quickToggleHint": "Kliknij, aby oznaczyć / odznaczyć hordę. Prawy przycisk: liczebność i grupa.",
+    "promptMarked": "Pokazuj okno przy każdym ataku oznaczonej hordy",
+    "promptMarkedHint": "Wyłączone: od razu używaj wskazanego celu i obrażeń ataku z karty. Jeśli nie wybrano jednego celu, otworzy się okno GM."
   }
 }
