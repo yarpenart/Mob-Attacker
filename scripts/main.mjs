@@ -32,10 +32,18 @@ function selectedSource() {
   return {doc:tokens[0].document, actor:tokens[0].actor};
 }
 function ledgerOwner() { return game.combat?.started ? game.combat : canvas.scene; }
-function scopeFor(owner) { return owner.documentName === 'Combat' ? `${owner.uuid}:${owner.round}` : `${owner.uuid}:manual`; }
+function scopeFor(owner) { return owner.uuid; }
 function ledger(owner) {
   const state = owner.getFlag(ID, 'ledger');
-  return state?.scope === scopeFor(owner) ? foundry.utils.deepClone(state) : {scope:scopeFor(owner), buckets:{}};
+  if (state?.schema === 2 && state.scope === scopeFor(owner) && Array.isArray(state.entries)) {
+    return {scope:state.scope,buckets:Object.fromEntries(foundry.utils.deepClone(state.entries))};
+  }
+  return {scope:scopeFor(owner),buckets:{}};
+}
+async function saveLedger(owner,state) {
+  // Dynamic UUIDs are VALUES inside an array, never dotted document update keys.
+  // Arrays are replaced atomically, also preventing stale recursive bucket merges.
+  await owner.setFlag(ID,'ledger',{schema:2,scope:state.scope,entries:Object.entries(state.buckets)});
 }
 function rollMode() {
   const mode=game.settings.get('core',(game.release?.generation ?? 14) >= 14 ? 'messageMode' : 'rollMode');
@@ -57,7 +65,7 @@ export async function toggleTokens(tokens = canvas.tokens?.controlled ?? []) {
   if (!docs.length) throw new Error(t('selectMany'));
   const enabled=!docs.every(doc => settings(doc).enabled);
   const group=docs.find(doc => settings(doc).enabled)?.getFlag(ID,'horde')?.group
-    ?? docs.map(doc => doc.getFlag(ID,'horde')?.group).find(Boolean) ?? `Horde ${foundry.utils.randomID(8)}`;
+    ?? docs.map(doc => doc.getFlag(ID,'horde')?.group).find(Boolean) ?? 'Horde';
   const updates=docs.map(doc => ({_id:doc.id,[`flags.${ID}.horde`]:{...settings(doc),enabled,...(enabled ? {group} : {})}}));
   await canvas.scene.updateEmbeddedDocuments('Token',updates);
   ui.combat?.render(); ui.controls?.render();
@@ -229,7 +237,11 @@ export async function resolve({doc,actor,activity,options}) {
     // Validate manual damage before committing any counters.
     if (!activity) new CONFIG.Dice.DamageRoll(options.damage, actor.getRollData());
     const profile=await damageProfile(activity,actor,options);
-    const state = ledger(owner), source = doc.uuid;
+    const state = ledger(owner);
+    // Each creature starts its first attack slot again next round, while the
+    // slot's accumulated hit progress persists for the entire combat.
+    const source=owner.documentName === 'Combat' ? `${doc.uuid}::round:${owner.round}`
+      : `${doc.uuid}::attempt:${foundry.utils.randomID()}`;
     const firstLane = options.lane ?? nextLane(state,options.group,source);
     const plans = [];
     for (let index=0; index<options.attacks; index++) {
@@ -251,7 +263,7 @@ export async function resolve({doc,actor,activity,options}) {
     if (scopeFor(owner) !== state.scope) throw new Error(t('roundChanged'));
     await consumeAmmunition(activity,actor,options,options.count*options.attacks);
     if (options.remember) await doc.setFlag(ID,'horde',{enabled:true,count:options.count,group:options.group,bonus:options.bonus,damage:options.damage});
-    await owner.setFlag(ID,'ledger',state);
+    await saveLedger(owner,state);
     const resultText = `<strong>${esc(options.group)} → ${esc(target.name)}</strong><p>${esc(t('summary',{ac,bonus,count:options.count,hits:totalHits}))}</p>`
       + plans.map(p => `<p>${esc(t('progress',{lane:p.lane,need:p.result.required,threshold:p.result.threshold,
         before:p.result.before,after:p.result.after,hits:p.result.hits,remainder:p.result.remainder}))}</p>`).join('');
