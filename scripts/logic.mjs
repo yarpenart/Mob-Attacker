@@ -51,7 +51,7 @@ export function parseCommand(text) {
   if (!/^\/horde(?:\s|$)/i.test(text.trim())) return null;
   const body = text.trim().replace(/^\/horde\s*/i, '');
   if (!body) return {action: 'open'};
-  if (/^(config|reset|help)$/i.test(body)) return {action: body.toLowerCase()};
+  if (/^(config|reset|help|toggle)$/i.test(body)) return {action: body.toLowerCase()};
   const parts = body.split('|').map(x => x.trim());
   if (parts.length < 2 || parts.length > 5 || !parts[0] || !parts[1]) throw new Error('COMMAND');
   return {action: 'attack', bonus: parts[0], damage: parts[1],

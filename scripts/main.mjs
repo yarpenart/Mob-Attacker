@@ -38,6 +38,31 @@ function ledger(owner) {
   return state?.scope === scopeFor(owner) ? foundry.utils.deepClone(state) : {scope:scopeFor(owner), buckets:{}};
 }
 function rollMode() { return game.settings.get('core', 'rollMode'); }
+export function visibilityChoices() {
+  return Object.entries(CONFIG.ChatMessage?.modes ?? CONFIG.Dice.rollModes ?? {}).map(([key,config]) => {
+    const label=typeof config === 'string' ? config : config?.label;
+    return [key,typeof label === 'string' ? game.i18n.localize(label) : key];
+  });
+}
+export async function toggleTokens(tokens = canvas.tokens?.controlled ?? []) {
+  requireAuthority();
+  const docs=[...new Map(tokens.map(token => token.document ?? token).filter(doc => doc.actor?.type === 'npc').map(doc => [doc.id,doc])).values()];
+  if (!docs.length) throw new Error(t('selectMany'));
+  const enabled=!docs.every(doc => settings(doc).enabled);
+  const group=docs.find(doc => settings(doc).enabled)?.getFlag(ID,'horde')?.group
+    ?? docs.map(doc => doc.getFlag(ID,'horde')?.group).find(Boolean) ?? `Horde ${foundry.utils.randomID(8)}`;
+  const updates=docs.map(doc => ({_id:doc.id,[`flags.${ID}.horde`]:{...settings(doc),enabled,...(enabled ? {group} : {})}}));
+  await canvas.scene.updateEmbeddedDocuments('Token',updates);
+  ui.combat?.render(); ui.controls?.render();
+  ui.notifications.info(t(enabled ? 'markedMany' : 'unmarkedMany',{count:docs.length}));
+  return {enabled,count:docs.length,group};
+}
+export function sceneControls(controls) {
+  if (!game.user.isGM || !controls.tokens?.tools) return;
+  controls.tokens.tools.yaHordeToggle={name:'yaHordeToggle',title:t('toggleSelected'),icon:'fa-solid fa-people-group',
+    order:Object.keys(controls.tokens.tools).length,button:true,visible:true,onChange:guard(() => toggleTokens())};
+}
+Hooks.on('getSceneControlButtons',sceneControls);
 function dialog(title, content, callback, label = t('save')) {
   return foundry.applications.api.DialogV2.wait({
     window:{title}, classes:['ya-horde-dialog'], position:{width:500},
@@ -98,7 +123,7 @@ export async function attackDialog({doc, actor, activity, config = {}, command =
     + field('lane','lane','','text','placeholder="auto"')
     + (activity?.item.system.attackModes?.length ? select('mode','attackMode',activity.item.system.attackModes.map(c => [c.value,c.label]),mode) : '')
     + (ammoChoices.length ? select('ammo','ammunition',[['',t('none')],...ammoChoices.map(c => [c.value,c.label])],ammo) : '')
-    + select('visibility','rollMode',Object.entries(CONFIG.Dice.rollModes).map(([k,v]) => [k,game.i18n.localize(v)]),command.rollMode ?? config.rollMode ?? rollMode())
+    + select('visibility','rollMode',visibilityChoices(),command.rollMode ?? config.rollMode ?? rollMode())
     + check('remember','remember',true)
     + `<p class="hint">${esc(t('attackHint'))}</p><p class="hint">${esc(t('modeHint'))}</p>`;
   return dialog(t('title'),content, form => {
@@ -123,9 +148,11 @@ async function finiteBonus(formula, actor, mode) {
   if (!roll.isDeterministic) await roll.toMessage({flavor:t('bonus'),speaker:ChatMessage.getSpeaker({actor})},{rollMode:mode});
   return roll.total;
 }
-async function card(actor, text, mode) {
+async function card(actor, text) {
   const data = {speaker:ChatMessage.getSpeaker({actor}),content:`<div class="ya-horde-card">${text}</div>`,flags:{[ID]:{result:true}}};
-  ChatMessage.applyMode(data,mode);
+  // Privacy is in the stored message, not a cosmetic client-side hide.
+  data.whisper=game.users.filter(user => user.isGM).map(user => user.id);
+  data.blind=false;
   return ChatMessage.create(data);
 }
 async function damageProfile(activity, actor, options) {
@@ -150,7 +177,7 @@ async function damage(activity, actor, options, job, hit) {
     const subject=profile.activityUuid ? await fromUuid(profile.activityUuid) : undefined;
     const rolls=await CONFIG.Dice.DamageRoll.build({isCritical:false,rolls:foundry.utils.deepClone(profile.rolls),
       hookNames:['damage'],subject}, {configure:false}, {rollMode:options.rollMode,data:{
-        speaker:profile.speaker,flavor:`${profile.name} — Horde (${hit+1}/${job.hits})`,
+        speaker:profile.speaker,flavor:profile.name,
         flags:{dnd5e:{...profile.flags,messageType:'roll',roll:{type:'damage'}},
           [ID]:{job:job.id,target:job.target,hit}}}});
     if (!rolls?.length) throw new Error(t('damageCanceled'));
@@ -162,12 +189,12 @@ async function damage(activity, actor, options, job, hit) {
     const ammo = options.ammunition ? actor.items.get(options.ammunition) : undefined;
     if (!activity.getDamageConfig({isCritical:false,attackMode:options.attackMode,ammunition:ammo}).rolls?.length) return;
     const rolls = await activity.rollDamage({isCritical:false,attackMode:options.attackMode,ammunition:ammo},
-      {configure:false}, {rollMode:options.rollMode, data:{flavor:`${activity.item.name} — Horde (${hit+1}/${job.hits})`,
+      {configure:false}, {rollMode:options.rollMode, data:{flavor:activity.item.name,
         flags:{[ID]:{job:job.id,target:job.target,hit}}}});
     if (!rolls?.length) throw new Error(t('damageCanceled'));
   } else {
     const roll = await new CONFIG.Dice.DamageRoll(options.damage,actor.getRollData(),{isCritical:false}).evaluate();
-    await roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor:`${esc(job.name)} — Horde (${hit+1}/${job.hits})`,
+    await roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor:esc(job.name),
       flags:{[ID]:{job:job.id,target:job.target,hit}}},{rollMode:options.rollMode});
   }
 }
@@ -191,7 +218,7 @@ export async function resolve({doc,actor,activity,options}) {
     if (!target?.actor || target.parent?.id !== canvas.scene.id) throw new Error(t('chooseTarget'));
     const ac = Number(target.actor.system.attributes.ac.value);
     if (!Number.isFinite(ac)) throw new Error(t('acInvalid'));
-    const bonus = await finiteBonus(options.bonus,actor,options.rollMode);
+    const bonus = await finiteBonus(options.bonus,actor,CONST.DICE_ROLL_MODES.PRIVATE);
     // Validate manual damage before committing any counters.
     if (!activity) new CONFIG.Dice.DamageRoll(options.damage, actor.getRollData());
     const profile=await damageProfile(activity,actor,options);
@@ -221,7 +248,7 @@ export async function resolve({doc,actor,activity,options}) {
     const resultText = `<strong>${esc(options.group)} → ${esc(target.name)}</strong><p>${esc(t('summary',{ac,bonus,count:options.count,hits:totalHits}))}</p>`
       + plans.map(p => `<p>${esc(t('progress',{lane:p.lane,need:p.result.required,threshold:p.result.threshold,
         before:p.result.before,after:p.result.after,hits:p.result.hits,remainder:p.result.remainder}))}</p>`).join('');
-    const message = await card(actor,resultText,options.rollMode);
+    const message = await card(actor,resultText);
     let completed = 0;
     try {
       for (const job of jobs) for (let hit=0; hit<job.hits; hit++) {
@@ -240,7 +267,14 @@ export async function interceptAttack(wrapped, config = {}, nativeDialog = {}, m
   const doc = sourceFor(this.actor), s = settings(doc,this.actor);
   if (!s.enabled && (!game.user.isGM || !game.settings.get(ID,'promptUnmarked'))) return wrapped(config,nativeDialog,message);
   if (!authority()) { ui.notifications.warn(t('authority')); return null; }
-  const options = await attackDialog({doc,actor:this.actor,activity:this,config});
+  const chosen=Array.from(game.user.targets ?? []);
+  const mode=selectedMode(this,config);
+  const ammo=config.ammunition ?? this.item.getFlag('dnd5e',`last.${this.id}.ammunition`)
+    ?? this.item.system.ammunitionOptions?.[0]?.value;
+  const options=s.enabled && chosen.length === 1 && !game.settings.get(ID,'promptMarked')
+    ? {...s,target:chosen[0].document.uuid,attacks:1,lane:null,remember:false,attackMode:mode,ammunition:ammo,
+      bonus:bonusFormula(this,config,mode,ammo),rollMode:message.rollMode ?? config.rollMode ?? rollMode()}
+    : await attackDialog({doc,actor:this.actor,activity:this,config});
   if (!options || options === 'cancel') return null;
   if (!options.enabled) {
     if (options.remember) await doc.setFlag(ID,'horde',{...s,enabled:false});
@@ -269,14 +303,20 @@ function tableHTML() {
     + TABLE.map(([upper,n],i) => `<tr><td>${i ? TABLE[i-1][0]+1 : '≤1'}–${upper}</td><td>${n}</td></tr>`).join('') + '</tbody></table>';
 }
 async function help() {
+  requireAuthority();
   await dialog(t('title'),`<p>${esc(t('help'))}</p>${tableHTML()}<p><code>/horde 5 | 1d6+3 | 8 | 1 | Orcs</code></p><p class="hint">${esc(t('rulesHint'))}</p>`,() => null,t('close'));
 }
-function injectButton(container, label, active, callback) {
-  if (!container || container.querySelector('.ya-horde-button')) return;
+function injectButton(container, label, active, callback, {key='configure',context}={}) {
+  if (!container || container.querySelector(`[data-ya-horde-key="${key}"]`)) return;
   const button = document.createElement('button'); button.type='button';
   button.className=`ya-horde-button ${active ? 'active' : ''}`;
+  button.dataset.yaHordeKey=key;
   button.textContent=label; button.title=t('configure');
   button.addEventListener('click',event => {event.preventDefault(); event.stopPropagation(); guard(callback)();});
+  if (context) {
+    button.title=t('quickToggleHint');
+    button.addEventListener('contextmenu',event => {event.preventDefault();event.stopPropagation();guard(context)();});
+  }
   container.append(button);
 }
 export function renderTracker(app,html) {
@@ -287,9 +327,12 @@ export function renderTracker(app,html) {
     const c = combat?.combatants.get(row.dataset.combatantId);
     if (c?.actor?.type !== 'npc') continue;
     const doc=c.token ?? c.actor,s=settings(doc,c.actor);
-    injectButton(row.querySelector('.combatant-controls') ?? row,`Horde${s.enabled ? ` ×${s.count}` : ''}`,s.enabled,() => configure(doc,c.actor));
+    injectButton(row.querySelector('.combatant-controls') ?? row,`Horde${s.enabled ? ` ×${s.count}` : ''}`,s.enabled,
+      () => c.token ? toggleTokens([c.token]) : configure(doc,c.actor),{context:() => configure(doc,c.actor)});
   }
   injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('title'),false,help);
+  injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('toggleSelected'),false,
+    () => toggleTokens(),{key:'toggleSelected'});
 }
 function renderSheet(app,html) {
   if (!game.user.isGM || app.actor?.type !== 'npc') return;
@@ -309,9 +352,34 @@ async function loadLanguage() {
   if (!response.ok) throw new Error('Could not load Horde language');
   language=(await response.json()).HORDE;
 }
+export async function interceptChat(wrapped,text,...args) {
+  let plain=String(text ?? '').trim();
+  if (plain.startsWith('<') && typeof DOMParser !== 'undefined') {
+    plain=new DOMParser().parseFromString(plain,'text/html').body.textContent.trim();
+  }
+  const ours=/^\/horde(?:\s|$)/i.test(plain) || /\s#horde(?:\s*\||\s*$)/i.test(plain);
+  if (!ours) return wrapped(text,...args);
+  requireAuthority();
+  const command=parseCommand(plain) ?? parseMarkedRoll(plain);
+  if (!command) throw new Error(t('commandInvalid'));
+  if (command.visibility) {
+    const modes=CONST.DICE_ROLL_MODES;
+    command.rollMode=/^(gmroll|gr)$/.test(command.visibility) ? modes.PRIVATE
+      : /^(blindroll|broll|br)$/.test(command.visibility) ? modes.BLIND
+      : /^(selfroll|sr)$/.test(command.visibility) ? modes.SELF : modes.PUBLIC;
+  }
+  if (command.action === 'help') await help();
+  else if (command.action === 'toggle') await toggleTokens();
+  else if (command.action === 'reset') await resetCounters();
+  else if (command.action === 'config') {const s=selectedSource();await configure(s.doc,s.actor);}
+  else await manual(command);
+  // Consume commands before core validates unknown slash commands or rolls dice.
+  return undefined;
+}
 Hooks.once('init',() => {
   game.settings.register(ID,'language',{name:'HORDE.language',scope:'client',config:true,type:String,choices:{en:'English',pl:'Polski'},default:'en',onChange:loadLanguage});
-  game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:true});
+  game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:false});
+  game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
 });
 Hooks.once('ready',async () => {
   await loadLanguage();
@@ -319,29 +387,14 @@ Hooks.once('ready',async () => {
   if (!globalThis.libWrapper) {ui.notifications.error(t('libWrapper')); return;}
   libWrapper.register(ID,'CONFIG.DND5E.activityTypes.attack.documentClass.prototype.rollAttack',
     async function(wrapped,...args) {try {return await interceptAttack.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
+  libWrapper.register(ID,'foundry.applications.sidebar.tabs.ChatLog.prototype.processMessage',
+    async function(wrapped,...args) {try {return await interceptChat(wrapped,...args);} catch(error) {notifyError(error);return undefined;}},'MIXED');
   game.modules.get(ID).api = {configure:() => {const s=selectedSource();return configure(s.doc,s.actor);},
-    attack:manual,reset:resetCounters,help,resolve};
+    attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
   Hooks.on('renderCombatTracker',renderTracker);
   Hooks.on('renderActorSheetV2',renderSheet);
   Hooks.on('renderActorSheet',renderSheet);
   Hooks.on('renderTokenHUD',renderHUD);
-  Hooks.on('chatMessage',(_log,text) => {
-    if (!/^\/horde(?:\s|$)/i.test(text.trim()) && !/\s#horde(?:\s*\||\s*$)/i.test(text)) return;
-    guard(async () => {
-      const command=parseCommand(text) ?? parseMarkedRoll(text);
-      if (!command) throw new Error(t('commandInvalid'));
-      if (command.visibility) {
-        const modes=CONST.DICE_ROLL_MODES;
-        command.rollMode = /^(gmroll|gr)$/.test(command.visibility) ? modes.PRIVATE
-          : /^(blindroll|broll|br)$/.test(command.visibility) ? modes.BLIND
-          : /^(selfroll|sr)$/.test(command.visibility) ? modes.SELF : modes.PUBLIC;
-      }
-      if (command.action === 'help') return help();
-      if (command.action === 'reset') return resetCounters();
-      if (command.action === 'config') {const s=selectedSource();return configure(s.doc,s.actor);}
-      return manual(command);
-    })();
-    return false;
-  });
   ui.combat?.render();
+  ui.controls?.render();
 });
