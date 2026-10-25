@@ -45,11 +45,11 @@ class FakeRoll {
 globalThis.Roll=FakeRoll;
 globalThis.CONST={DICE_ROLL_MODES:{PUBLIC:'publicroll',PRIVATE:'gmroll',BLIND:'blindroll',SELF:'selfroll'}};
 globalThis.CONFIG={Dice:{DamageRoll:FakeRoll}};
-const {resolve,interceptAttack,visibilityChoices,toggleTokens,sceneControls,interceptChat,attackDialog}=await import('../scripts/main.mjs');
+const {resolve,interceptAttack,visibilityChoices,toggleTokens,sceneControls,interceptChat,attackDialog,interceptDamage}=await import('../scripts/main.mjs');
 const activity={actor,item:{name:'Axe',system:{}},getDamageConfig:()=>({rolls:[{}]}),
  rollDamage:async(...args)=>{damageCalls.push(args);return [{}];}};
 const opts={enabled:true,group:'Orcs',count:8,attacks:1,lane:null,bonus:'5',target:target.uuid,rollMode:'blindroll'};
-beforeEach(()=>{flags.clear();messages.length=0;damageCalls.length=0;owner.round=1;game.user.isGM=true;game.user.targets=new Set();canvas.tokens={controlled:[],placeables:[]};});
+beforeEach(()=>{flags.clear();messages.length=0;damageCalls.length=0;owner.round=1;owner.combatant=null;game.user.isGM=true;game.user.targets=new Set();canvas.tokens={controlled:[],placeables:[]};});
 test('native attacks roll damage twice and preserve blind visibility without rolling a d20',async()=>{
  const result=await resolve({doc,actor,activity,options:{...opts}});
  assert.equal(result.hits,2);assert.equal(damageCalls.length,2);
@@ -249,4 +249,100 @@ test('outside combat consecutive attacks share saved progress until an explicit 
   }
   assert.equal(damageCalls.length,1);
  } finally {canvas.scene=originalScene;game.combat=originalCombat;}
+});
+
+function initiativeGoblin(number,attackLimit=1) {
+ const token={uuid:`Scene.x.Token.goblin${number}`,id:`g${number}`,getFlag:()=>({enabled:true,group:'Horde',count:1,attackLimit})};
+ const npc={...actor,name:`Goblin ${number}`,id:`g${number}`,token,items:new Map()};token.actor=npc;
+ const weapon={id:'scimitar',name:'Scimitar',type:'weapon',system:{activities:new Map()},getFlag:()=>undefined};
+ const attack={actor:npc,item:weapon,id:'attack',name:'Slash',type:'attack',getAttackData:()=>({parts:['4'],data:{}}),
+  getDamageConfig:()=>({rolls:[{parts:['4'],options:{type:'slashing'}}]}),
+  rollDamage:async(...args)=>{damageCalls.push({goblin:number,args});return [{}];}};
+ weapon.system.activities.set('attack',attack);npc.items.set('scimitar',weapon);
+ return {uuid:`Combat.a.Combatant.g${number}`,id:`g${number}`,actor:npc,token,attack};
+}
+test('one open sheet follows initiative and repeated clicks cannot generate free attacks',async()=>{
+ const oldAC=target.actor.system.attributes.ac.value;target.actor.system.attributes.ac.value=10;
+ const a=initiativeGoblin(1),b=initiativeGoblin(2);game.user.targets=new Set([{document:target}]);
+ owner.combatant=a;
+ await interceptAttack.call(a.attack,async()=>{throw Error('no d20');});
+ assert.equal(flags.get('ledger').entries[0][1].total,1);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/TURN_SPENT/);
+ owner.combatant=b;
+ await interceptAttack.call(a.attack,async()=>{throw Error('same sheet should resolve as active Goblin 2');});
+ assert.equal(flags.get('ledger').entries[0][1].total,2);
+ assert.equal(damageCalls.length,1);assert.equal(damageCalls[0].goblin,2);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/TURN_SPENT/);
+ assert.equal(damageCalls.length,1);
+ target.actor.system.attributes.ac.value=oldAC;
+});
+test('the ordinary damage button cannot bypass Horde hit resolution',async()=>{
+ const a=initiativeGoblin(1);owner.combatant=a;let called=0;
+ assert.equal(await interceptDamage.call(a.attack,async()=>{called++;}),null);
+ assert.equal(called,0);
+ await interceptDamage.call(a.attack,async config=>{called++;assert.equal(config._yaHordeResolvedDamage,undefined);},
+   {_yaHordeResolvedDamage:true,isCritical:false});
+ assert.equal(called,1);
+});
+test('forcing a missed initiative attack rolls damage once and clears progress',async()=>{
+ const oldAC=target.actor.system.attributes.ac.value;target.actor.system.attributes.ac.value=10;
+ const a=initiativeGoblin(1),b=initiativeGoblin(2);owner.combatant=a;
+ game.user.targets=new Set([{document:target}]);
+ await interceptAttack.call(a.attack,async()=>{});
+ await interceptAttack.call(a.attack,async()=>{},{hordeForceHit:true});
+ assert.equal(damageCalls.length,1);assert.equal(flags.get('ledger').entries[0][1].total,0);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{},{hordeForceHit:true}),/TURN_SPENT/);
+ owner.combatant=b;await interceptAttack.call(a.attack,async()=>{});
+ assert.equal(flags.get('ledger').entries[0][1].total,1);assert.equal(damageCalls.length,1);
+ target.actor.system.attributes.ac.value=oldAC;
+});
+test('force hit before the first attack consumes the turn and cannot be spammed',async()=>{
+ const a=initiativeGoblin(1);owner.combatant=a;game.user.targets=new Set([{document:target}]);
+ await interceptAttack.call(a.attack,async()=>{},{hordeForceHit:true});
+ assert.equal(damageCalls.length,1);assert.equal(flags.get('ledger').entries[0][1].total,0);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/TURN_SPENT/);
+});
+test('configured multiattack allows two attempts and rejects the third',async()=>{
+ const a=initiativeGoblin(1,2);owner.combatant=a;game.user.targets=new Set([{document:target}]);
+ await interceptAttack.call(a.attack,async()=>{});await interceptAttack.call(a.attack,async()=>{});
+ assert.equal(flags.get('ledger').turns.length,2);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/TURN_SPENT/);
+});
+test('initiative turn limits refresh next round without resetting target progress',async()=>{
+ const a=initiativeGoblin(1);owner.combatant=a;game.user.targets=new Set([{document:target}]);
+ await interceptAttack.call(a.attack,async()=>{});owner.round=2;
+ await interceptAttack.call(a.attack,async()=>{});
+ assert.equal(flags.get('ledger').entries[0][1].total,2);
+});
+test('changing target or sheet cannot bypass the initiative attack limit',async()=>{
+ const a=initiativeGoblin(1),b=initiativeGoblin(2);owner.combatant=a;
+ game.user.targets=new Set([{document:target}]);await interceptAttack.call(a.attack,async()=>{});
+ await assert.rejects(interceptAttack.call(b.attack,async()=>{}),/TURN_SPENT/);
+ const oldLookup=globalThis.fromUuid;
+ const other={...target,uuid:'Scene.x.Token.other'};
+ globalThis.fromUuid=async id=>id===other.uuid?other:oldLookup(id);
+ try {game.user.targets=new Set([{document:other}]);await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/TURN_SPENT/);}
+ finally {globalThis.fromUuid=oldLookup;}
+});
+test('force hit clears only this Horde and target, preserving progress against others',async()=>{
+ const a=initiativeGoblin(1);owner.combatant=a;game.user.targets=new Set([{document:target}]);
+ await interceptAttack.call(a.attack,async()=>{});
+ flags.get('ledger').entries.push(['other',{group:'Horde',target:'Scene.x.Token.other',total:7,sources:[],lane:1}]);
+ await interceptAttack.call(a.attack,async()=>{},{hordeForceHit:true});
+ const entries=flags.get('ledger').entries;
+ assert.equal(entries.find(([k])=>k==='other')[1].total,7);
+ assert.equal(entries.find(([k])=>k!=='other')[1].total,0);
+});
+test('an attack dialog from a previous initiative turn cannot spend the new combatant’s action',async()=>{
+ const a=initiativeGoblin(1),b=initiativeGoblin(2);owner.combatant=b;
+ await assert.rejects(resolve({doc:a.token,actor:a.actor,activity:a.attack,
+  options:{...opts,group:'Horde',count:1,turnGuard:{combat:owner.uuid,combatant:a.uuid,round:owner.round}}}));
+ assert.equal(flags.size,0);assert.equal(damageCalls.length,0);
+});
+test('simultaneous clicks on one sheet consume only one initiative attack',async()=>{
+ const a=initiativeGoblin(1);owner.combatant=a;game.user.targets=new Set([{document:target}]);
+ const results=await Promise.allSettled([interceptAttack.call(a.attack,async()=>{}),interceptAttack.call(a.attack,async()=>{})]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal(flags.get('ledger').turns.length,1);
+ assert.equal(flags.get('ledger').entries[0][1].total,1);
 });
