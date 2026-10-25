@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.1.1
+# YarpenArt: Mob Attacker — 0.1.2
 
 Moduł dla **Foundry VTT v14 / D&D5e 5.3.3**. Zastępuje rzuty na trafienie hordy tabelą Mob Attacks z 2014 r. Rzuca obrażenia automatycznie po przekroczeniu progu. Wymaga **libWrapper**. Dice So Nice jest opcjonalne; obrażenia korzystają ze standardowych rzutów systemu.
 
@@ -14,7 +14,15 @@ Instalacja przez manifest (Foundry / Forge):
 https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 ```
 
-Wydanie v0.1.1: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.1 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+Wydanie v0.1.2: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.2 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+
+## Zmiany w 0.1.2
+
+- Naprawiono zapis postępu między kolejnymi atakami. Wpisy licznika zapisywane są jako tablica, dzięki czemu UUID z kropkami nie są traktowane jako ścieżki aktualizacji dokumentu Foundry.
+- **Nowa runda nie zeruje postępu.** Dziesięć goblinów z progiem 20 zachowuje 10/20 po pierwszej rundzie i trafia po kolejnych dziesięciu atakach w drugiej rundzie.
+- Numeracja multiataku zaczyna się od 1 dla tokena w nowej rundzie, ale postęp każdego numeru ataku jest kontynuowany. Poza walką kolejne kliknięcia domyślnie zasilają wspólny licznik nr 1.
+- Szybkie oznaczanie nowych tokenów pojedynczo używa wspólnej domyślnej grupy `Horde`, zamiast tworzyć osobną losową grupę dla każdego tokena. Istniejące, nazwane grupy pozostają zachowane. Aby scalić stare różne grupy, zaznacz wszystkie ich tokeny, odznacz hordę i oznacz ponownie zbiorczo.
+- Liczniki starszych wersji mogą mieć uszkodzony format. Przy pierwszym ataku po tej aktualizacji rozpoczyna się świeże liczenie. Następne rundy i odświeżenia strony nie zerują go.
 
 ## Zmiany w 0.1.1
 
@@ -58,13 +66,13 @@ Próg pochodzi z **KP − premia do ataku**:
 | 19 | 10 |
 | 20 lub więcej | 20 |
 
-Przykład: osiem orków z premią +5 przeciw KP 19 potrzebuje wyniku 14, czyli trzech atakujących na trafienie. Daje to **2 trafienia**, a postęp 2/3 może dopełnić następny token tej hordy w tej samej rundzie i pod tym samym numerem ataku.
+Przykład: osiem orków z premią +5 przeciw KP 19 potrzebuje wyniku 14, czyli trzech atakujących na trafienie. Daje to **2 trafienia**, a postęp 2/3 może dopełnić następny token tej hordy w tej lub kolejnej rundzie pod tym samym numerem ataku.
 
 Liczniki są oddzielne dla **hordy, celu, premii do ataku, KP i numeru ataku**. Zmiana KP, np. Shield, zaczyna oddzielny licznik dla nowej wartości. Normalne ataki przeciwników spoza hordy nie dodają postępu.
 
-Numer ataku domyślnie rośnie dla danego tokena w tej hordzie: pierwsze kliknięcie 1, drugie 2 itd. Pierwsze ataki różnych tokenów współdzielą numer 1. Dzięki temu ten sam NPC nie jest dwukrotnie traktowany jako kolejny członek hordy przy Multiattack. Przy dzieleniu jednej reprezentowanej grupy pomiędzy cele lub przy nierównych sekwencjach ustaw numer ręcznie. Ponowne użycie tego samego tokena z tym samym numerem, celem, premią i KP jest blokowane.
+W ramach jednej rundy numer ataku domyślnie rośnie dla danego tokena w tej hordzie: pierwsze kliknięcie 1, drugie 2 itd. Pierwsze ataki różnych tokenów współdzielą numer 1. Dzięki temu ten sam NPC nie jest dwukrotnie traktowany jako kolejny członek hordy przy Multiattack. Przy dzieleniu jednej reprezentowanej grupy pomiędzy cele lub przy nierównych sekwencjach ustaw numer ręcznie. Ponowne użycie tego samego tokena z tym samym numerem, celem, premią i KP jest blokowane.
 
-Liczniki zapisują się w danych walki i **zerują się logicznie przy zmianie rundy**. Poza rozpoczętą walką zapisują się na scenie; użyj `/horde reset`, aby zacząć kolejną serię. Cofnięcie rundy również tworzy świeże liczniki. Reset nie przywraca amunicji i nie cofa obrażeń.
+Liczniki zapisują się w danych walki i **zachowują postęp między rundami**. Nowa runda rozpoczyna tylko numerację ataków tokena od 1; nie zeruje licznika trafień. W nowym starciu obowiązuje oddzielny licznik. Poza rozpoczętą walką dane zapisują się na scenie i kolejne ataki domyślnie zasilają slot 1. Użyj `/horde reset`, jeśli chcesz ręcznie rozpocząć liczenie od zera. Reset nie przywraca amunicji i nie cofa obrażeń.
 
 ## Ataki wpisywane ręcznie
 
@@ -95,7 +103,7 @@ Pozostałe komendy:
 /horde reset    wyzeruj bieżące liczniki
 ```
 
-## Zakres i ograniczenia wersji 0.1.1
+## Zakres i ograniczenia wersji 0.1.2
 
 - **Obsługa przez GM.** Przy kilku aktywnych GM operacje hordy wykonuje GM z pierwszym alfabetycznie ID użytkownika. Pozwala to uniknąć nadpisywania wspólnych liczników. Pozostali mogą normalnie wykonywać ataki spoza hordy. Wyliczenia i komunikaty reguł są zawsze szeptem do GM. Wybrana widoczność dotyczy samych obrażeń.
 - Integracja dotyczy aktywności **attack**: broni, ataków zaklęć, ataków zdolności. Zaklęcia na rzut obronny, obszarowe i z automatycznym trafieniem zachowują standardowy przebieg. Tabela KP nie zastępuje ich zasad.
@@ -110,7 +118,7 @@ Pozostałe komendy:
 
 Enable libWrapper and this module on Foundry v14 with dnd5e 5.3.3. Mark an NPC using **Horde** in initiative, token HUD, the NPC sheet, or `/horde config`. Set the same group identifier for separate tokens; set count to 1 for individual members or to the number represented by one token. Select multiple NPC tokens and use the group icon on the Token toolbar to toggle Horde membership in one click. Target a creature and use any native attack activity directly from its sheet. Rules and counters are always whispered to GMs; public damage cards contain only ordinary damage information. The module counts hits from the Mob Attacks table and rolls normal activity damage once per hit. HP application remains manual.
 
-Manual attacks: `/horde 5 | 1d6+3 | 8 | 1 | Orcs`, or `/r 1d20+5 #horde | 1d6+3`. Combat counters reset each round; outside combat use `/horde reset`. Save-based spells retain their normal rules. This initial version is GM-operated, ranks mixed groups by their damage formulas, and has not been run inside a licensed Foundry instance.
+Manual attacks: `/horde 5 | 1d6+3 | 8 | 1 | Orcs`, or `/r 1d20+5 #horde | 1d6+3`. Progress persists across combat rounds and page reloads. Only automatic multiattack numbering restarts each round. Use `/horde reset` to clear progress manually. Save-based spells retain their normal rules. This initial version is GM-operated, ranks mixed groups by their damage formulas, and has not been run inside a licensed Foundry instance.
 
 ## Walidacja
 
@@ -118,7 +126,7 @@ Manual attacks: `/horde 5 | 1d6+3 | 8 | 1 | Orcs`, or `/r 1d20+5 #horde | 1d6+3`
 node --test tests/*.test.mjs
 ```
 
-Testy obejmują granice tabeli, przykład ośmiu orków, osobne tokeny, cele, premie, KP, multiatak, zmianę rundy, komendy ręczne, kolejkę jednoczesnych operacji, brak amunicji, widoczność obrażeń, ataki bez obrażeń, wybór silniejszego stworzenia w grupie mieszanej oraz przerwany rzut.
+Testy obejmują granice tabeli, przykład ośmiu orków, osobne tokeny, cele, premie, KP, multiatak, zachowanie postępu po zmianie rundy i zapisie w formacie aktualizacji dokumentu, komendy ręczne, kolejkę jednoczesnych operacji, brak amunicji, widoczność obrażeń, ataki bez obrażeń, wybór silniejszego stworzenia w grupie mieszanej oraz przerwany rzut.
 
 **Nie przeprowadzono testu w uruchomionym Foundry ani na Forge.** Integrację opracowano na podstawie źródeł D&D5e z tagu `release-5.3.3` i API Foundry v14. Testy integracyjne używają atrap API; nie potwierdzają renderowania interfejsu ani zgodności z innymi modułami.
 
