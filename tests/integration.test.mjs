@@ -3,7 +3,31 @@ import assert from 'node:assert/strict';
 const flags = new Map(), messages=[], damageCalls=[];
 const hooks = {};
 globalThis.Hooks={once:(name,fn)=>{hooks[name]=fn;},on:()=>{},callAll:()=>{}};
-const owner={uuid:'Combat.a',documentName:'Combat',round:1,started:true,getFlag:()=>flags.get('ledger'),setFlag:async(k,f,v)=>{flags.set(f,structuredClone(v));}};
+// Model Foundry's dotted-path update expansion and recursive flag merges.
+function documentRoundTrip(value) {
+ const flat={};
+ function flatten(object,path='') {
+  for(const [key,v] of Object.entries(object)) {
+   const next=path ? `${path}.${key}` : key;
+   if(v && v.constructor===Object && Object.keys(v).length) flatten(v,next);
+   else flat[next]=structuredClone(v);
+  }
+ }
+ flatten(value);const output={};
+ for(const [path,value] of Object.entries(flat)) {
+  const keys=path.split('.');let node=output;
+  for(const key of keys.slice(0,-1)) node=node[key]??={};
+  node[keys.at(-1)]=value;
+ }
+ return output;
+}
+function mergeStored(old,next) {
+ const result=structuredClone(old ?? {});
+ for(const [k,v] of Object.entries(next)) result[k]=v && v.constructor===Object
+   ? mergeStored(result[k],v) : structuredClone(v);
+ return result;
+}
+const owner={uuid:'Combat.a' ,documentName:'Combat',round:1,started:true,getFlag:()=>flags.get('ledger'),setFlag:async(k,f,v)=>{flags.set(f,mergeStored(flags.get(f),documentRoundTrip(v)));}};
 const doc={uuid:'Scene.x.Token.orcs',getFlag:()=>null,setFlag:async()=>{}};
 const actor={id:'orcs',name:'Orcs',type:'npc',token:doc,items:new Map(),getFlag:()=>null,getRollData:()=>({})};
 const target={uuid:'Scene.x.Token.fighter',name:'Fighter',parent:{id:'x'},actor:{system:{attributes:{ac:{value:19}}}}};
@@ -32,12 +56,12 @@ test('native attacks roll damage twice and preserve blind visibility without rol
  assert.deepEqual(messages[0].whisper,['gm']);assert.equal(damageCalls[0][2].rollMode,'blindroll');
  assert.equal(damageCalls[0][0].isCritical,false);assert.equal(damageCalls[0][1].configure,false);
 });
-test('second native attack starts another lane; next round starts again at lane one',async()=>{
+test('next round starts at attack slot one while keeping its accumulated progress',async()=>{
  await resolve({doc,actor,activity,options:{...opts}});
  let result=await resolve({doc,actor,activity,options:{...opts}});
  assert.equal(result.plans[0].lane,2);
  owner.round=2; result=await resolve({doc,actor,activity,options:{...opts}});
- assert.equal(result.plans[0].lane,1);assert.equal(result.plans[0].result.before,0);
+ assert.equal(result.plans[0].lane,1);assert.equal(result.plans[0].result.before,8);assert.equal(result.hits,3);
 });
 test('three separate horde tokens complete a single hit across serialized requests',async()=>{
  const calls=[1,2,3].map(i=>resolve({doc:{...doc,uuid:`token${i}`},actor,activity,options:{...opts,count:1}}));
@@ -167,4 +191,62 @@ test('manual Horde and marked raw-roll commands open the GM dialog without runni
  await interceptChat(async()=>{native++;},'/horde 5 | 6 | 8');
  await interceptChat(async()=>{native++;},'/r 1d20+5 #horde | 6');
  assert.equal(opened,2);assert.equal(native,0);
+});
+
+test('regression: dotted UUID keys are corrupted by document expansion, stored entries are safe',async()=>{
+ const key='["Horde","Scene.x.Token.fighter",4,1,10]';
+ assert.notDeepEqual(documentRoundTrip({buckets:{[key]:{total:1}}}),{buckets:{[key]:{total:1}}});
+ for(let i=1;i<=3;i++) {
+  const result=await resolve({doc:{...doc,uuid:`Scene.x.Token.goblin${i}`},actor,activity,
+    options:{...opts,group:'Goblins',count:1,bonus:'5'}});
+  assert.equal(result.plans[0].result.before,i-1);
+  assert.equal(flags.get('ledger').schema,2);
+  assert.ok(Array.isArray(flags.get('ledger').entries));
+ }
+ assert.equal(damageCalls.length,1);
+});
+test('ten goblins needing a natural 20 hit in the second round without losing progress',async()=>{
+ const original=target.actor.system.attributes.ac.value;
+ target.actor.system.attributes.ac.value=24;
+ for(let round=1;round<=2;round++) {
+  owner.round=round;
+  for(let i=1;i<=10;i++) {
+   const result=await resolve({doc:{...doc,uuid:`Scene.x.Token.goblin${i}`},actor,activity,
+    options:{...opts,group:'Goblins',count:1,bonus:'4'}});
+   assert.equal(result.plans[0].lane,1);
+   assert.equal(result.plans[0].result.before,(round-1)*10+i-1);
+  }
+ }
+ assert.equal(damageCalls.length,1);
+ target.actor.system.attributes.ac.value=original;
+});
+test('three native goblin sheet attacks retain progress and roll native damage at the threshold',async()=>{
+ const original=target.actor.system.attributes.ac.value;target.actor.system.attributes.ac.value=10;
+ game.user.targets=new Set([{document:target}]);
+ for(let i=1;i<=3;i++) {
+  const token={...doc,uuid:`Scene.x.Token.goblin${i}`,getFlag:()=>({enabled:true,group:'Horde',count:1})};
+  const native={...activity,actor:{...actor,token},item:{...activity.item,getFlag:()=>undefined},
+    getAttackData:()=>({parts:['4'],data:{}})};
+  await interceptAttack.call(native,async()=>{throw Error('must not roll a d20');});
+ }
+ assert.equal(damageCalls.length,1);
+ assert.equal(flags.get('ledger').entries[0][1].total,3);
+ target.actor.system.attributes.ac.value=original;
+});
+test('quick-marking NPCs separately uses a shared default Horde instead of random groups',async()=>{
+ const tokens=[selectedNPC('a'),selectedNPC('b')];batchScene(tokens);
+ await toggleTokens([tokens[0]]);await toggleTokens([tokens[1]]);
+ assert.equal(tokens[0].state.group,'Horde');assert.equal(tokens[1].state.group,'Horde');
+});
+
+test('outside combat consecutive attacks share saved progress until an explicit reset',async()=>{
+ const originalScene=canvas.scene,originalCombat=game.combat;
+ canvas.scene={...owner,uuid:'Scene.x',id:'x',documentName:'Scene'};game.combat=null;
+ try {
+  for(let i=0;i<3;i++) {
+   const result=await resolve({doc,actor,activity,options:{...opts,count:1}});
+   assert.equal(result.plans[0].result.before,i);assert.equal(result.plans[0].lane,1);
+  }
+  assert.equal(damageCalls.length,1);
+ } finally {canvas.scene=originalScene;game.combat=originalCombat;}
 });
