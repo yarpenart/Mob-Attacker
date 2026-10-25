@@ -14,7 +14,7 @@ Instalacja przez manifest (Foundry / Forge):
 https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 ```
 
-Wydanie v0.1.0: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.0 . Kolejne wydania można publikować dołączonym workflow po wypchnięciu tagu `vX.Y.Z`.
+Wydanie v0.1.0: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.0 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
 
 ## Oznaczanie hordy
 
