@@ -37,7 +37,14 @@ function ledger(owner) {
   const state = owner.getFlag(ID, 'ledger');
   return state?.scope === scopeFor(owner) ? foundry.utils.deepClone(state) : {scope:scopeFor(owner), buckets:{}};
 }
-function rollMode() { return game.settings.get('core', 'rollMode'); }
+function rollMode() {
+  const mode=game.settings.get('core',(game.release?.generation ?? 14) >= 14 ? 'messageMode' : 'rollMode');
+  return mode === 'ic' ? 'public' : mode;
+}
+function visibilityMode(kind) {
+  const modern={PUBLIC:'public',PRIVATE:'gm',BLIND:'blind',SELF:'self'}[kind];
+  return CONFIG.ChatMessage?.modes?.[modern] ? modern : CONST.DICE_ROLL_MODES[kind];
+}
 export function visibilityChoices() {
   return Object.entries(CONFIG.ChatMessage?.modes ?? CONFIG.Dice.rollModes ?? {}).map(([key,config]) => {
     const label=typeof config === 'string' ? config : config?.label;
@@ -218,7 +225,7 @@ export async function resolve({doc,actor,activity,options}) {
     if (!target?.actor || target.parent?.id !== canvas.scene.id) throw new Error(t('chooseTarget'));
     const ac = Number(target.actor.system.attributes.ac.value);
     if (!Number.isFinite(ac)) throw new Error(t('acInvalid'));
-    const bonus = await finiteBonus(options.bonus,actor,CONST.DICE_ROLL_MODES.PRIVATE);
+    const bonus = await finiteBonus(options.bonus,actor,visibilityMode('PRIVATE'));
     // Validate manual damage before committing any counters.
     if (!activity) new CONFIG.Dice.DamageRoll(options.damage, actor.getRollData());
     const profile=await damageProfile(activity,actor,options);
@@ -363,10 +370,9 @@ export async function interceptChat(wrapped,text,...args) {
   const command=parseCommand(plain) ?? parseMarkedRoll(plain);
   if (!command) throw new Error(t('commandInvalid'));
   if (command.visibility) {
-    const modes=CONST.DICE_ROLL_MODES;
-    command.rollMode=/^(gmroll|gr)$/.test(command.visibility) ? modes.PRIVATE
-      : /^(blindroll|broll|br)$/.test(command.visibility) ? modes.BLIND
-      : /^(selfroll|sr)$/.test(command.visibility) ? modes.SELF : modes.PUBLIC;
+    command.rollMode=visibilityMode(/^(gmroll|gr)$/.test(command.visibility) ? 'PRIVATE'
+      : /^(blindroll|broll|br)$/.test(command.visibility) ? 'BLIND'
+      : /^(selfroll|sr)$/.test(command.visibility) ? 'SELF' : 'PUBLIC');
   }
   if (command.action === 'help') await help();
   else if (command.action === 'toggle') await toggleTokens();
