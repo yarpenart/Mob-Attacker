@@ -1,0 +1,15 @@
+.ya-horde-dialog { max-height:90vh; }
+.ya-horde-dialog .window-content { background:#20232b; color:#f1f2f6; overflow-y:auto; }
+.ya-horde { display:flex; flex-direction:column; gap:10px; color:inherit; }
+.ya-horde label { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.ya-horde input:not([type=checkbox]), .ya-horde select { flex:0 1 58%; min-width:0; background:#303642; color:#fff; border:1px solid #7a8599; }
+.ya-horde input[type=checkbox] { flex:none; }
+.ya-horde p { margin:0; line-height:1.5; }
+.ya-horde .hint { color:#c9d1df; font-size:12px; }
+.ya-horde button, .ya-horde-dialog footer button { background:#354252; color:#fff; border:1px solid #8e9dae; }
+.ya-horde table { color:inherit; }
+.ya-horde .error { color:#ffb3b3; }
+.ya-horde-button { flex:0 0 auto; width:auto; min-width:32px; padding:2px 6px; font-size:11px; line-height:20px; border:1px solid #8997ac; border-radius:4px; background:#263447; color:#f7f9fc; }
+.ya-horde-button.active { background:#5b3468; border-color:#d0a1df; }
+.ya-horde-card { border:1px solid #7c688f; border-radius:5px; padding:8px; }
+.ya-horde-card p { margin:4px 0; }
