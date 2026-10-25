@@ -37,6 +37,20 @@ export function planAttack(state, {group, target, source, bonus, ac, count, lane
   return { key, result, bucket: {group, target, bonus, ac, lane, total: result.after,
     sources: [...(bucket?.sources ?? []), source]} };
 }
+/** Initiative limits are global to the combatant's round, across sheets/targets. */
+export function reserveTurn(state,{combatant,round,target,group,attacks=1,limit=1,lane,forceHit=false}) {
+  const used=(state.turns ?? []).filter(t=>t.combatant===combatant && t.round===round);
+  const last=used.at(-1);
+  if (forceHit && last && last.target===target && last.group===group && last.hits===0 && !last.forced) {
+    return {firstLane:last.slot,convert:last};
+  }
+  const firstLane=lane ?? (used.length ? Math.max(...used.map(t=>t.slot))+1 : 1);
+  integer(limit,1,10,'attackLimit');
+  if (firstLane+attacks-1>limit || Array.from({length:attacks},(_,i)=>firstLane+i).some(slot=>used.some(t=>t.slot===slot))) {
+    throw new Error('TURN_SPENT');
+  }
+  return {firstLane,convert:null};
+}
 /** Choose the highest-damage creature within each threshold-sized group. */
 export function damageAssignments(previous, current, before, count, threshold) {
   const remainder = before % threshold;
