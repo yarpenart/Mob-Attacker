@@ -44,6 +44,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     data.actorLink=false;data.name=`${pop.baseName} ${i+1}`;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
     data.flags??={};data.flags[ID]={...data.flags[ID],horde:{...config,count:1},
       population:{...pop,initial:1,current:1,soloName:data.name},splitOrigin:provenance};delete data.flags[ID].splitLock;
+    if(Array.isArray(pop.members))data.flags[ID].population.members=[hp[i]];
     data.delta={...(data.delta ?? {}),name:actorData.name,system:foundry.utils.deepClone(actorData.system),
       items:foundry.utils.deepClone(actorData.items ?? []),effects:foundry.utils.deepClone(actorData.effects ?? []),flags:foundry.utils.deepClone(actorData.flags ?? {})};
     data.delta.system.attributes.hp={...data.delta.system.attributes.hp,max:pop.baseHP,value:hp[i],temp:i===0?(actorData.system.attributes.hp.temp??0):0};

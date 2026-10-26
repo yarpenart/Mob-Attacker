@@ -1,3 +1,4 @@
+import {mergeTokens} from './merge.mjs';
 import {splitToken} from './split.mjs';
 import {installSaves} from './saves.mjs';
 import {syncPopulation,populationActorUpdated,SIZE_DEFAULTS,sizeThresholds,syncHordeName} from './population.mjs';
@@ -108,6 +109,7 @@ export function sceneControls(controls) {
   if (!game.user.isGM || !controls.tokens?.tools) return;
   controls.tokens.tools.yaHordeToggle={name:'yaHordeToggle',title:t('toggleSelected'),icon:'fa-solid fa-people-group',
     order:Object.keys(controls.tokens.tools).length,button:true,visible:true,onChange:guard(() => toggleTokens())};
+  controls.tokens.tools.yaHordeSplitMerge={name:'yaHordeSplitMerge',title:t('splitMergeHorde'),icon:'fa-solid fa-arrows-split-up-and-left',order:Object.keys(controls.tokens.tools).length,button:true,visible:true,onChange:guard(()=>splitMergeHorde())};
 }
 Hooks.on('getSceneControlButtons',sceneControls);
 function dialog(title, content, callback, label = t('save')) {
@@ -454,7 +456,7 @@ export function renderTracker(app,html) {
     if (c?.actor?.type !== 'npc') continue;
     const doc=c.token ?? c.actor,s=settings(doc,c.actor);
     injectButton(row.querySelector('.combatant-controls') ?? row,`Horde${s.enabled ? ` ×${s.count}` : ''}`,s.enabled,
-      () => c.token ? toggleTokens([c.token]) : configure(doc,c.actor),{context:() => configure(doc,c.actor)});
+      () => c.token ? toggleTokens([c.token]) : configure(doc,c.actor),{context:() => hordeMenu(doc,c.actor)});
   }
   injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('title'),false,help);
   injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('toggleSelected'),false,
@@ -467,6 +469,20 @@ export async function splitHorde(doc) {
     ui.combat?.render();ui.notifications.info(t('splitDone',{count:result.tokens.length}));return result;
   });
 }
+function selectedMergeMembers(doc) {
+  const selected=(canvas.tokens?.controlled??[]).map(token=>token.document??token);
+  return selected.length>1&&(!doc||selected.some(d=>d.uuid===doc.uuid)) ? selected : [];
+}
+export async function splitMergeHorde(doc) {
+  requireAuthority();
+  const selected=selectedMergeMembers(doc);
+  if(selected.length&&selected.every(d=>d.actor?.type==='npc'&&(!settings(d).enabled||settings(d).count===1))) {
+    return enqueue(async()=>{const result=await mergeTokens(selected,{preferred:doc,requireAuthority});ui.combat?.render();ui.notifications.info(t('mergeDone',{count:result.count}));return result;});
+  }
+  doc??=(canvas.tokens?.controlled?.length===1 ? canvas.tokens.controlled[0].document : null);
+  if(doc&&settings(doc).enabled&&settings(doc).count>1)return splitHorde(doc);
+  throw Error(t('mergeSelect'));
+}
 export async function hordeMenu(doc,actor=doc.actor ?? doc) {
   requireAuthority();
   const s=settings(doc,actor);
@@ -475,11 +491,11 @@ export async function hordeMenu(doc,actor=doc.actor ?? doc) {
     buttons:[{action:'configure',label:t('configure'),default:true,callback:()=> 'configure'},
       {action:'force',label:t('forceHit'),disabled:!s.enabled,callback:()=> 'force'},
       {action:'save',label:t('hordeSave'),disabled:!s.enabled,callback:()=> 'save'},
-      {action:'split',label:t('splitHorde'),disabled:!s.enabled||s.count<2||!doc.actor,callback:()=> 'split'}],rejectClose:false});
+      {action:'split',label:t('splitMergeHorde'),disabled:!doc.actor||(!(s.enabled&&s.count>1)&&selectedMergeMembers(doc).length<2),callback:()=> 'split'}],rejectClose:false});
   if(action==='configure')return configure(doc,actor);
   if(action==='force')return forceFromSheet(actor);
   if(action==='save')return saves.open(actor);
-  if(action==='split')return splitHorde(doc);
+  if(action==='split')return splitMergeHorde(doc);
 }
 export function renderSheet(app,html) {
   if (!game.user.isGM || app.actor?.type !== 'npc') return;
@@ -488,17 +504,18 @@ export function renderSheet(app,html) {
   // Remove buttons left by a partial sheet render, then keep one menu before source/XP.
   for(const old of header.querySelectorAll('[data-ya-horde-key]'))if(old.dataset.yaHordeKey!=='hordeMenu')old.remove();
   const container=header.querySelector('.header-elements') ?? header;
-  injectButton(container,'Horde',false,()=>hordeMenu(sourceFor(app.actor),app.actor),{key:'hordeMenu'});
+  injectButton(container,'Horde',false,()=>{const doc=selectedMergeMembers().find(d=>d.actor?.id===app.actor.id)??sourceFor(app.actor);return hordeMenu(doc,doc.actor??app.actor);},{key:'hordeMenu'});
   const button=container.querySelector('[data-ya-horde-key="hordeMenu"]');
   if(button)container.prepend(button);
 }
-function renderHUD(app,html) {
+export function renderHUD(app,html) {
   if (!game.user.isGM) return;
-  const token=app.object, actor=token?.actor;
+  const doc=app.document ?? app.object?.document ?? app.object,actor=doc?.actor;
   if (actor?.type !== 'npc') return;
-  const s=settings(token.document,actor),container=root(html)?.querySelector('.col.right');
-  injectButton(container,'Horde',s.enabled,() => hordeMenu(token.document,actor));
-  if(s.enabled&&s.count>1)injectButton(container,t('splitHorde'),true,()=>splitHorde(token.document),{key:'splitHorde'});
+  const s=settings(doc,actor),container=root(html)?.querySelector('.col.right');
+  // Partial HUD renders must not leave the old standalone split control behind.
+  for(const button of container?.querySelectorAll('[data-ya-horde-key="splitHorde"], [data-ya-horde-key="splitMergeHorde"]')??[])button.remove();
+  injectButton(container,'Horde',s.enabled,() => hordeMenu(doc,actor));
 }
 let sizeTimer;
 function scheduleSizes() {
@@ -563,7 +580,7 @@ Hooks.once('ready',async () => {
   libWrapper.register(ID,'CONFIG.DND5E.activityTypes.save.documentClass.prototype.rollDamage',
     async function(wrapped,...args) {try {return await saves.interceptSaveDamage.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
   game.modules.get(ID).api = {configure:() => {const s=selectedSource();return configure(s.doc,s.actor);},
-    save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,split:()=>splitHorde(selectedSource().doc),attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
+    save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,split:()=>splitHorde(selectedSource().doc),splitMerge:splitMergeHorde,mergeSelected:()=>splitMergeHorde(),attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
   Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
   Hooks.on('createCombatant',guard(c=>authority() && c.token?.getFlag(ID,'population') && syncHordeName(c.token,settings(c.token).count)));
   if(authority())for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {

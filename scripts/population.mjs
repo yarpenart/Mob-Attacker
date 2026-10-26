@@ -34,6 +34,15 @@ export async function syncHordeName(doc,count,population=doc?.getFlag(ID,'popula
     if(updates.length)await combat.updateEmbeddedDocuments('Combatant',updates);
   }
 }
+/** Merged wounded individuals retain their living count and wounds. */
+export function updateMembers(members,hp,baseHP) {
+  const result=[...members];let delta=hp-result.reduce((a,b)=>a+b,0);
+  if(delta<0)for(let i=0;i<result.length&&delta<0;i++){const loss=Math.min(result[i],-delta);result[i]-=loss;delta+=loss;}
+  if(delta>0)for(const alive of [true,false])for(let i=0;i<result.length&&delta>0;i++) {
+    if((result[i]>0)!==alive)continue;const gain=Math.min(baseHP-result[i],delta);result[i]+=gain;delta-=gain;
+  }
+  return result;
+}
 export async function syncPopulation(doc,options={}) {
   if (!doc?.actor || doc.documentName==='Actor') return;
   let actor=doc.actor;
@@ -68,12 +77,14 @@ export async function syncPopulation(doc,options={}) {
   population.soloName ??= String(doc.name || population.baseName).replace(/(?:\s*\(Horde\))+\s*$/i,'').trim();
   let currentHP=Number(hp.value);
   if (resize) {
+    delete population.members;
     population.initial=requested;
     // Keep existing damage when changing population, rather than healing it.
     const oldMax=population.current===requested && !doc.getFlag(ID,'population') ? population.baseHP : Number(hp.max);
     currentHP=Math.max(0,population.baseHP*requested-Math.max(0,oldMax-currentHP));
   }
-  population.current=livingCount(currentHP,population.baseHP,population.initial);
+  if(Array.isArray(population.members)) {population.members=updateMembers(population.members,currentHP,population.baseHP);population.current=population.members.filter(hp=>hp>0).length;}
+  else population.current=livingCount(currentHP,population.baseHP,population.initial);
   const shape=hordeSize(population.current,population.baseSize);
   const max=population.baseHP*population.initial;
   const actorUpdate={};
@@ -92,5 +103,6 @@ export async function syncPopulation(doc,options={}) {
 export async function populationActorUpdated(actor,changes,options={}) {
   if (options.yaHordePopulation) return;
   const doc=actor.token;
+  if(doc?.getFlag(ID,'mergeLock'))return;
   if (doc?.getFlag(ID,'population')) await syncPopulation(doc);
 }
