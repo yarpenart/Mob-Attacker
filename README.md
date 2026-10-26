@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.0
+# YarpenArt: Mob Attacker — 0.5.1
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -16,15 +16,16 @@ Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`,
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
 
-## What changed in 0.5.0
+## What changed in 0.5.1
 
-- Default split names now include Horde and member numbers: `Goblin 1.1`, `Goblin 1.2`, then `Goblin 2.1` for another Horde.
-- Naming settings offer continuous numbering across Hordes (`Goblin 1` through `Goblin 16` for two groups of eight), random adjectives, custom templates, and numbered/adjective Horde names.
-- Durable world counters avoid restarting numbers after reload. Each base NPC has its own sequence; generated individual names also avoid collisions on the scene.
-- Related settings are organized into three GM-only menus: **Population size rules**, **HP, split and merge rules**, and **Horde and member naming**. Existing size/initiative/HP-distribution choices are preserved.
-- Optional per-member maximum HP rolls use the NPC HP formula or a custom formula. The sum becomes Horde maximum HP and stored individual maxima survive split/merge. The default remains the HP value written in the base NPC statblock, normally the average of its HP formula.
-- HUD buttons explicitly accept pointer events and rebind when the HUD switches tokens. The HUD still has only one Horde menu button.
-- Module windows have explicit light/dark palettes, readable controls, scrollable long forms, and accessible contrast for normal text, hints, inputs and disabled controls.
+- Default map names use `Goblin 1` through `Goblin 16` for two splits of eight. New names use the lowest free member numbers on this scene, separately for each base NPC. Existing members keep their numbers when others merge or disappear.
+- Horde numbers have a separate pool. Merging Goblins 6–13 produces `Goblin 1 (Horde)` if number 1 is free; merging the remaining 1–5 and 14–16 produces `Goblin 2 (Horde)`. Historical counters and other scenes no longer increase these numbers.
+- On the first upgrade, existing Horde numbers are compacted and the old default naming choices switch to map numbering. Existing individual names and custom/adjective settings are retained.
+- The Split/Merge button now delegates all selected members to the same validation, accepting numeric and stored string counts consistently. Split copies have independent HP pools and discard old merge state; population hooks ignore an in-progress split. Different rolled HP caps remain supported.
+- Damage removes HP from the weakest living member first, based on current HP rather than maximum HP or token order.
+- Individual initiative results follow members through split/merge for this encounter. Later splits restore known results and roll only missing ones.
+- Encounter memory and save results expire when combat ends. A private GM summary reports unique creatures, killed and surviving, with a module setting to disable it.
+- Rolled HP and grouped settings from 0.5.0 are retained. Default HP still uses the value written in the NPC statblock, normally its average HP.
 
 ## Naming settings
 
@@ -35,16 +36,22 @@ For individual members, choose Horde.member numbering, a continuous sequence, or
 | Placeholder | Meaning |
 |---|---|
 | `{name}` | Original base creature name |
-| `{horde}` | Persistent group number |
+| `{horde}` | Horde number on this scene |
 | `{member}` | Member number within this split |
-| `{number}` | Continuous member number for this base NPC in the world |
+| `{number}` | Lowest free member number for this base NPC on this scene |
 | `{adjective}` | Random adjective from your configured list |
 
 Examples: `{name} {horde}.{member}`, `{name} {number}`, or `{adjective} {name}`. Adjective-only/custom names that collide on the scene receive an extra numeric suffix. Supply your own adjectives separated by commas or new lines; a blank list uses built-in English/Polish words.
 
 Horde naming can stay plain (`Goblin (Horde)`), add a group number (`Goblin 2 (Horde)`), use an adjective, or use a custom template. Multi-member names always retain `(Horde)`. Existing Horde names update when naming settings are saved; already split individuals keep their assigned names until another split. Assigned adjectives do not change randomly on reload.
 
-Counters advance permanently, including when an attempted operation needs to be retried; gaps are possible and numbers are not recycled. A newly merged Horde receives a new group identity so a later split does not reuse its members' old group numbers.
+Numbers are allocated from live scene tokens, not a world history counter. Deleted or merged member numbers become available to new split members; existing tokens are never automatically renumbered. Horde numbers are independent of member numbers. Optional Horde.member/custom/adjective modes remain available. In Horde.member mode, split group IDs remain reserved while their individual members are on the scene, to avoid duplicate group/member names.
+
+## Encounter memory and GM summary
+
+Attack/save progress survives round changes within one encounter. Individual initiative results, HP snapshots and split/merge provenance are bound to that Combat session, survive a client reload, and are discarded when the encounter is ended/deleted or reset to round zero. Pending old save cards expire and cannot apply damage in a later encounter. Current token HP, member caps, wounds and population remain the physical state after the battle; ending combat does not heal creatures.
+
+When combat ends, **Private Horde combat summary** (enabled by default in module settings) whispers all GMs the total unique creatures, killed (currently zero HP), and survivors. Split and merge preserve creature IDs and never double-count them. Creatures entering later are included; creatures already dead when they enter a new encounter are not counted again.
 
 ## Optional rolled maximum HP
 
@@ -56,11 +63,11 @@ With stored individual HP, casualties and healing use the tracked member pools. 
 
 ## What changed in 0.4.3
 
-Fixed immediate remerging after splitting. Compatibility now uses the base NPC actor identity rather than synthetic actor display names, which can differ between numbered split members. Equivalent numeric/string attack limits are normalized. The stored base creature name is retained when remerging, so the resulting token remains `Goblin (Horde)` rather than acquiring a member number. Distinct base creatures, base sizes, base maximum HP, or attack limits remain incompatible, with more specific error messages.
+Fixed immediate remerging after splitting. Compatibility now uses the base NPC actor identity rather than synthetic actor display names, which can differ between numbered split members. Equivalent numeric/string attack limits are normalized. The stored base creature name is retained when remerging, so the resulting token remains `Goblin (Horde)` rather than acquiring a member number. Distinct base creatures, base sizes, or attack limits remain incompatible, with more specific error messages.
 
 ## What changed in 0.4.2
 
-**Split Horde: initiative** is a world setting with **Keep shared initiative** (default) and **Roll new initiative for each creature**. The second mode uses native Foundry/system initiative rolls for every split member, including the retained original token. The active combatant and spent attack slots are preserved. Splitting outside combat does not create combat entries or start a fight.
+**Split Horde: initiative** is a world setting with **Keep shared initiative** (default) and **Individual initiatives: restore saved or roll missing**. The second mode restores each member’s previously recorded initiative from this combat; only members without a result receive a native Foundry/system roll, including the retained original token when needed. The active combatant and spent attack slots are preserved. Splitting outside combat does not create combat entries or start a fight.
 
 ## What changed in 0.4.1
 
@@ -74,7 +81,7 @@ Merging adds current HP and base maximum HP, retains the active selected combata
 
 Only living individual NPCs on the same scene, with the same actor, base size, and attack limit can merge. The retained token supplies the resulting actor's items, resources, and effects; different stat blocks are not combined. Temporary HP is summed into the shared pool.
 
-Merged wounded creatures retain their individual wounds internally, so two goblins at 1 HP remain two members with 2 HP total. Subsequent damage is assigned to those members in order; healing fills living members' wounds before restoring fallen members. Splitting uses the configured equal/random distribution and preserves the total HP and living count. Manually changing the population count resets this individual wound tracking to the standard pooled model.
+Merged wounded creatures retain their individual wounds internally, so two goblins at 1 HP remain two members with 2 HP total. Subsequent damage drains members in ascending current HP order; healing fills living members' wounds before restoring fallen members. Splitting uses the configured equal/random distribution and preserves the total HP and living count. Manually changing the population count rebuilds the member pools and retains the total damage already taken.
 
 ## What changed in 0.3.1
 
@@ -138,7 +145,7 @@ Forcing before an attack consumes an available attempt. Forcing after the latest
 
 ## Population HP and token size
 
-Maximum HP = the original creature's maximum HP × the initial number of creatures. Repeated configuration does not multiply HP again. Current living members = current HP divided by base HP, rounded up and capped at the initial population. Zero HP means zero living members.
+Maximum HP = the original creature's maximum HP × the initial number of creatures. Repeated configuration does not multiply HP again. Living population is the number of member pools above zero HP. Damage drains the member with the lowest current HP first, then the next weakest. The initial population remains recorded. Zero HP means zero living members.
 
 Losing a full creature's worth of HP removes one member. A partly wounded member still counts. Healing can restore members up to the original population. Changing the configured count establishes a new initial population while preserving existing damage. Disabling Horde restores the base HP and footprint.
 
@@ -168,7 +175,7 @@ Open the specific token's HUD and choose **Horde → Split/Merge Horde**, or use
 
 The original token and combatant are retained as the first member. Generated individual names follow the naming settings described above. New tokens receive independent HP, the creature's original size, and copies of its items/effects. Nearby free positions are used; splitting stops before changing anything if there is insufficient space within the scene. Placement avoids occupied token footprints but does not evaluate walls or terrain.
 
-By default, every member keeps the original Horde initiative. Set **Split Horde: initiative** to **Roll new initiative for each creature** to reroll all members through the system instead, including the original retained token. Already spent attack slots for the current round are inherited, preventing free attacks by splitting after attacking. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
+By default, every member keeps the original Horde initiative. Set **Split Horde: initiative** to **Individual initiatives: restore saved or roll missing** to restore their recorded results for this combat, rolling only members without a recorded result. A new encounter starts a new initiative memory. Already spent attack slots for the current round are inherited, preventing free attacks by splitting after attacking. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
 
 **Split Horde: HP distribution**, inside **HP, split and merge rules**, is a world setting:
 
