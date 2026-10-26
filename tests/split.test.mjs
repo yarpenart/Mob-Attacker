@@ -126,3 +126,10 @@ test('splitting a Horde with rolled maxima gives each member its actual maximum'
  assert.deepEqual(result.tokens.map(t=>t.actor.system.attributes.hp.max),[3,8,5]);assert.equal(result.hp.reduce((a,b)=>a+b,0),16);
  for(const member of result.tokens){await syncPopulation(member);assert.equal(member.getFlag(ID,'horde').count,1);}
 });
+test('a failed split restores original counts with in-place recursive document flag updates',async()=>{
+ const {recursiveUpdate}=await import('./document-update.mjs');const {token,combat,actor,scene}=fixture();
+ token.update=async data=>recursiveUpdate(token,data);combat.rollInitiative=async()=>{throw Error('roll failed');};
+ await assert.rejects(splitToken(token,{initiativeMode:'reroll'}),/roll failed/);
+ assert.equal(token.getFlag(ID,'population').initial,8);assert.equal(token.getFlag(ID,'horde').count,8);assert.equal(actor.system.attributes.hp.max,56);assert.equal(actor.system.attributes.hp.value,50);assert.equal(scene.tokens.size,1);
+ await syncPopulation(token);assert.equal(actor.system.attributes.hp.max,56);assert.equal(token.getFlag(ID,'horde').count,8);
+});

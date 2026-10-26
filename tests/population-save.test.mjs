@@ -166,3 +166,32 @@ test('damage drains the lowest current HP first regardless of member order or ma
  assert.deepEqual(updateMembers([8,2,5],12,[10,4,9]),[8,0,4]);
  assert.deepEqual(updateMembers([8,2,5],0,[10,4,9]),[0,0,0]);
 });
+test('rolled-to-statblock reconfiguration stays stable under recursive Foundry flag updates',async()=>{
+ const {recursiveUpdate}=await import('./document-update.mjs');const doc=token(2);doc.actor.system.attributes.hp.formula='2d6';doc.update=async data=>recursiveUpdate(doc,data);
+ game.settings=mockSettings({hordeNaming:'plain',hordeHPMode:'rolled'});let rolls=0;globalThis.Roll=class{async evaluate(){this.total=[3,11][rolls++];return this;}};
+ await syncPopulation(doc);game.settings.values.set('hordeHPMode','max');
+ await syncPopulation(doc,{config:{enabled:true,count:3},reconfigure:true});assert.equal(doc.actor.system.attributes.hp.max,21);
+ await syncPopulation(doc);assert.equal(doc.actor.system.attributes.hp.max,21);assert.deepEqual(doc.getFlag(ID,'population').maxima,[7,7,7]);
+});
+test('a former rolled singleton uses the original statblock HP when becoming an average-HP Horde',async()=>{
+ const doc=token(1);doc.baseActor={system:{attributes:{hp:{max:7}}}};doc.actor.system.attributes.hp={max:3,value:3};
+ doc.flags[ID].population={baseHP:3,baseName:'Goblin',baseSize:'sm',initial:1,current:1,members:[3],maxima:[3],width:1,height:1};
+ await syncPopulation(doc,{config:{enabled:true,count:8},reconfigure:true});assert.equal(doc.actor.system.attributes.hp.max,56);assert.equal(doc.actor.system.attributes.hp.value,56);
+});
+test('a native spell damage dialog completed in another scope cannot attach to the new encounter',async()=>{
+ const {api,origin}=saveFixture();const event={target:{closest:()=>({dataset:{messageId:origin.id}})}};
+ const rolls=[{total:4,options:{type:'fire'}}];
+ await api.interceptSaveDamage.call({uuid:'spell'},async()=>{canvas.scene={uuid:'Scene.another'};return rolls;},{event});
+ assert.equal(origin.getFlag(ID,'saveDamage'),undefined);
+});
+test('a save card cannot damage replacement members with the same count and HP',async()=>{
+ const {doc,api}=saveFixture();doc.flags[ID].battle={ids:Array.from({length:8},(_,i)=>'before'+i)};
+ const {message}=await api.resolveSave({doc,actor:doc.actor,options:{dc:14,bonus:'4',ability:'dex',damage:'4',damageType:'fire'}});
+ doc.flags[ID].battle.ids=Array.from({length:8},(_,i)=>'after'+i);
+ await assert.rejects(api.apply(message),/saveStale/);assert.equal(doc.actor.system.attributes.hp.value,56);
+});
+test('an expired save form is rejected before changing token HP or writing results',async()=>{
+ const {doc,api,messages}=saveFixture();const hp=doc.actor.system.attributes.hp.value;
+ await assert.rejects(api.resolveSave({doc,actor:doc.actor,options:{expectedScope:'a different encounter',dc:14,bonus:'4',ability:'dex',damage:'4'}}),/saveStale/);
+ assert.equal(doc.actor.system.attributes.hp.value,hp);assert.equal(messages.length,1);assert.equal(doc.getFlag(ID,'population'),undefined);
+});

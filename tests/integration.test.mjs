@@ -422,3 +422,7 @@ test('a new encounter session cannot reuse previous attack progress on the same 
  flags.set('session',{id:'fight2'});await resolve({doc,actor,activity,options:{...opts,count:1}});
  assert.equal(flags.get('ledger').entries[0][1].total,1);assert.equal(flags.get('ledger').scope,'Combat.a:fight2');
 });
+test('an open sheet cannot lend a non-equivalent attack to a different active Horde NPC',async()=>{
+ const a=initiativeGoblin(1),b=initiativeGoblin(2);b.actor.items.clear();owner.combatant=b;game.user.targets=new Set([{document:target}]);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/noEquivalentAttack/);assert.equal(damageCalls.length,0);assert.equal(flags.size,0);
+});
