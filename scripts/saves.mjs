@@ -37,6 +37,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
     requireAuthority();
     const doc=sourceFor(actor);await syncPopulation(doc);actor=doc.actor ?? actor;
     const s=settings(doc,actor);if (!s.enabled || !s.count) throw Error(t('emptyHorde'));
+    await ensureCombat(game.combat);const expectedScope=memoryScope();
     const origin=sourceMessage(config.event),activity=origin?.getAssociatedActivity?.();
     const ability=config.ability ?? 'dex';
     const choices=Object.entries(CONFIG.DND5E.abilities).map(([id,a])=>[id,game.i18n.localize(a.label ?? a)]);
@@ -54,16 +55,20 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
     if (!opts || opts==='cancel') return null;
     // Rebuild native ability bonuses when the ability selector changed without an edited bonus.
     if (opts.ability!==ability && opts.bonus===bonusFormula(actor,ability)) opts.bonus=bonusFormula(actor,opts.ability);
-    return resolveSave({doc,actor,options:{...opts,source:origin?.id,activity:activity?.uuid,count:s.count}});
+    return resolveSave({doc,actor,options:{...opts,expectedScope,source:origin?.id,activity:activity?.uuid,count:s.count}});
   }
   async function resolveSave({doc,actor,options}) {
     return queue(async()=>{
-      requireAuthority();await ensureCombat(game.combat);await syncPopulation(doc);actor=doc.actor ?? actor;
+      requireAuthority();
+      if(options.expectedScope&&options.expectedScope!==memoryScope())throw Error(t('saveStale'));
+      await ensureCombat(game.combat);await syncPopulation(doc);actor=doc.actor ?? actor;
       const s=settings(doc,actor);if (!s.enabled || !s.count) throw Error(t('emptyHorde'));
+      const scope=memoryScope();
+      if(options.expectedScope&&options.expectedScope!==scope)throw Error(t('saveStale'));
       const roll=await new Roll(options.bonus,actor.getRollData()).evaluate();
       if (!Number.isFinite(roll.total)) throw Error(t('bonusInvalid'));
       const source=options.source ? game.messages?.get(options.source) : null;
-      const scope=memoryScope();
+      if(scope!==memoryScope())throw Error(t('saveStale'));
       const prior=source ? game.messages.contents.filter(message=>{const d=message.getFlag(ID,'save');return d?.scope===scope && d.source===source.id && d.target===doc.uuid && d.ability===options.ability && d.status!=='superseded';}) : [];
       if (prior.some(message=>['applied','applying'].includes(message.getFlag(ID,'save').status))) throw Error(t('saveAlreadyApplied'));
       if (prior.length && options.forced==null) throw Error(t('saveDuplicate'));
@@ -74,7 +79,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
       const result=saveCount(options.dc,roll.total,s.count,options.forced ?? null,previous);
       const data={...result,scope,dc:options.dc,bonus:roll.total,ability:options.ability,target:doc.uuid,
         source:options.source ?? null,activity:options.activity ?? null,onSave:options.onSave ?? 'half',status:'pending',
-        hp:actor.system.attributes.hp.value,initial:doc.getFlag(ID,'population')?.initial ?? s.count};
+        hp:actor.system.attributes.hp.value,memberIds:foundry.utils.deepClone(doc.getFlag(ID,'battle')?.ids??null),initial:doc.getFlag(ID,'population')?.initial ?? s.count};
       const text=`<strong>${esc(actor.name)} — ${esc(t('hordeSave'))}</strong><p>${esc(t('saveSummary',{
         dc:data.dc,bonus:data.bonus,count:data.count,successes:data.successes,failures:data.failures,threshold:data.threshold}))}</p>`;
       let parts;
@@ -83,6 +88,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
         if (!Number.isFinite(damageRoll.total) || damageRoll.total<0) throw Error(t('damageInvalid'));
         parts=[{value:damageRoll.total,type:options.damageType || undefined}];
       }
+      if(scope!==memoryScope())throw Error(t('saveStale'));
       const after=options.forced==null ? previous+s.count : 0;
       for (const old of prior) await old.update({[`flags.${ID}.save.status`]:'superseded'});
       await owner.setFlag(ID,'saveLedger',[...entries.filter(([k])=>k!==key),[key,after]]);
@@ -104,7 +110,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
       requireAuthority();const data=message.getFlag(ID,'save');
       if (data?.scope!==memoryScope() || !data?.parts || data.status!=='pending') throw Error(t('saveAlreadyApplied'));
       const doc=await fromUuid(data.target);await syncPopulation(doc);const actor=doc?.actor;
-      if (!actor || settings(doc,actor).count!==data.count || actor.system.attributes.hp.value!==data.hp) throw Error(t('saveStale'));
+      if (data.scope!==memoryScope() || (data.memberIds&&JSON.stringify(data.memberIds)!==JSON.stringify(doc?.getFlag(ID,'battle')?.ids)) || !actor || settings(doc,actor).count!==data.count || actor.system.attributes.hp.value!==data.hp) throw Error(t('saveStale'));
       const damage=saveDamage(actor,data.parts,data,data.onSave);
       // Persist the lock before HP changes; never allow a second application on reload.
       await message.setFlag(ID,'save',{...data,status:'applying'});
@@ -120,15 +126,17 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
     await open(this,config);return null;
   }
   async function interceptSaveDamage(wrapped,config={},...args) {
+    const tracking=authority();
+    if(tracking)await ensureCombat(game.combat);
+    const scope=memoryScope(),origin=sourceMessage(config.event);
     const rolls=await wrapped(config,...args);
-    if (!rolls?.length || !authority()) return rolls;
-    await ensureCombat(game.combat);
-    const origin=sourceMessage(config.event);
+    if (!rolls?.length || !tracking || !authority() || scope!==memoryScope()) return rolls;
     const parts=rolls.map(r=>({value:r.total,type:r.options?.type,properties:new Set(r.options?.properties ?? [])}));
     // Store Sets as arrays; reconstruct when the system calculates damage.
     for (const part of parts) part.properties=Array.from(part.properties);
     await queue(async()=>{
-      if (origin) await origin.setFlag(ID,'saveDamage',{parts,scope:memoryScope()});
+      if(scope!==memoryScope())return;
+      if (origin) await origin.setFlag(ID,'saveDamage',{parts,scope});
       for (const message of game.messages.contents) {
         const data=message.getFlag(ID,'save');
         if (data?.scope===memoryScope() && data.status==='pending' && !data.parts && data.activity===this.uuid && origin && data.source===origin.id) await attachDamage(message,parts);

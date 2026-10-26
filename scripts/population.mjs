@@ -73,7 +73,7 @@ export async function syncPopulation(doc,options={}) {
   const hp=actor.system.attributes.hp;
   if (!config.enabled) {
     const remaining=population.members?.find(value=>value>0)??(hp.value>0 ? ((hp.value-1)%population.baseHP)+1 : 0);
-    const singleMax=population.maxima?.[Math.max(0,population.members.findIndex(hp=>hp>0))]??population.baseHP;
+    const singleMax=population.maxima?.[Math.max(0,(population.members?.findIndex(hp=>hp>0)??0))]??population.baseHP;
     await actor.update({'system.attributes.hp.max':singleMax,'system.attributes.hp.value':remaining,
       'system.traits.size':population.baseSize},{yaHordePopulation:true});
     await syncHordeName(doc,1,population);
@@ -89,6 +89,7 @@ export async function syncPopulation(doc,options={}) {
     population={baseHP,baseSize:actor.system.traits.size,width:doc.width ?? 1,height:doc.height ?? 1,
       initial:requested,current:requested};
   }
+  population.statblockHP ??= Number(doc.baseActor?.system?.attributes?.hp?.max??population.baseHP);
   population.baseName ??= creatureName(doc);
   population.soloName ??= String(doc.name || population.baseName).replace(/(?:\s*\(Horde\))+\s*$/i,'').trim();
   let currentHP=Number(hp.value);
@@ -101,8 +102,14 @@ export async function syncPopulation(doc,options={}) {
       const total=population.maxima.reduce((a,b)=>a+b,0);
       currentHP=Math.max(0,total-damage);
       population.members=updateMembers(population.maxima,currentHP,population.maxima);
-    } else currentHP=Math.max(0,population.baseHP*requested-damage);
+    } else {
+      population.baseHP=population.statblockHP;
+      // Explicit arrays replace old rolled caps under Foundry's recursive flag updates.
+      population.maxima=Array(requested).fill(population.baseHP);
+      currentHP=Math.max(0,population.baseHP*requested-damage);
+    }
   }
+  if(!Array.isArray(population.maxima))population.maxima=Array(population.initial).fill(population.baseHP);
   if(!Array.isArray(population.members))population.members=updateMembers(Array(population.initial).fill(population.baseHP),currentHP,population.baseHP);
   if(Array.isArray(population.members)) {population.members=updateMembers(population.members,currentHP,population.maxima??population.baseHP);population.current=population.members.filter(hp=>hp>0).length;}
   else population.current=livingCount(currentHP,population.baseHP,population.initial);

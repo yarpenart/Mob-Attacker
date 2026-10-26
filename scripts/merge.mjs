@@ -56,7 +56,8 @@ async function mergeTokensWork(tokens,{preferred,requireAuthority=()=>{},initiat
   const mergedBattle=common&&battle.every(b=>b?.combat===common.combat&&b.session===common.session)?{...common,ids:battle.flatMap((b,i)=>b.ids.filter((id,j)=>id&&(!members[i].pop?.members||members[i].pop.members[j]>0)))}:null;
   const baseName=source.pop?.baseName||anchor.baseActor?.name||creatureName(anchor);
   const group=source.config.group||baseName;
-  const population={baseHP:Number(anchor.baseActor?.system.attributes.hp.max??source.pop?.baseHP??source.max),baseSize:source.size,baseName,soloName:source.pop?.soloName||anchor.name,
+  const statblockHP=Number(anchor.baseActor?.system.attributes.hp.max??source.pop?.statblockHP??source.pop?.baseHP??source.max);
+  const population={baseHP:statblockHP,statblockHP,baseSize:source.size,baseName,soloName:source.pop?.soloName||anchor.name,
     width:source.pop?.width??anchor.width,height:source.pop?.height??anchor.height,initial:count,current:count,members:members.map(m=>m.hp),maxima:members.map(m=>m.max)};
   const actorData=source.actor.toObject();
   let name=`${population.baseName} (Horde)`;

@@ -50,7 +50,7 @@ async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=M
   initiativeMode??=game.settings.get(ID,'splitInitiative')??'shared';
   if(!['shared','reroll'].includes(initiativeMode))throw Error('Invalid split Horde initiative mode');
   await syncPopulation(doc);
-  const pop=doc.getFlag(ID,'population'),config=doc.getFlag(ID,'horde');
+  const pop=foundry.utils.deepClone(doc.getFlag(ID,'population')),config=foundry.utils.deepClone(doc.getFlag(ID,'horde'));
   if(!config?.enabled||!pop||pop.current<2)throw Error('A Horde needs at least two living creatures to split');
   if(doc.getFlag(ID,'splitLock'))throw Error('This Horde is already being split');
   const scene=doc.parent,count=pop.current;
@@ -80,8 +80,8 @@ async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=M
   const parents=combats.flatMap(combat=>Array.from(combat.combatants?.values?.() ?? []).filter(c=>c.tokenId===doc.id && (!c.sceneId||c.sceneId===scene.id)).map(c=>({combat,c,original:{_id:c.id,name:c.name,initiative:c.initiative}})));
   const active=game.combat?.combatant?.id;
   let retainLock=false;
-  const newTokens=[],newCombatants=[],ledgers=new Map();
-  for(const {combat} of parents)ledgers.set(combat,foundry.utils.deepClone(combat.getFlag(ID,'ledger')));
+  const newTokens=[],newCombatants=[],ledgers=new Map(),sessions=new Map();
+  for(const {combat} of parents){ledgers.set(combat,foundry.utils.deepClone(combat.getFlag(ID,'ledger')));sessions.set(combat,foundry.utils.deepClone(combat.getFlag(ID,'session')));}
   await doc.setFlag(ID,'splitLock',true);
   try {
     newTokens.push(...await scene.createEmbeddedDocuments('Token',Array.from({length:count-1},(_,i)=>make(i+1))));
@@ -120,7 +120,7 @@ async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=M
     try {
       await doc.actor.update({'system.attributes.hp.max':actorData.system.attributes.hp.max,'system.attributes.hp.value':actorData.system.attributes.hp.value,'system.traits.size':actorData.system.traits.size},{yaHordePopulation:true});
       await doc.update({name:template.name,x:template.x,y:template.y,width:template.width,height:template.height,
-        [`flags.${ID}.horde`]:config,[`flags.${ID}.population`]:pop,...(battle?{[`flags.${ID}.battle`]:battle}:{}),...(template.flags?.[ID]?.splitOrigin ? {[`flags.${ID}.splitOrigin`]:template.flags[ID].splitOrigin} : {[`flags.${ID}.-=splitOrigin`]:null})});
+        [`flags.${ID}.horde`]:config,[`flags.${ID}.population`]:pop,...(template.flags?.[ID]?.mergeOrigin?{[`flags.${ID}.mergeOrigin`]:template.flags[ID].mergeOrigin}:{[`flags.${ID}.-=mergeOrigin`]:null}),...(battle?{[`flags.${ID}.battle`]:battle}:{}),...(template.flags?.[ID]?.splitOrigin ? {[`flags.${ID}.splitOrigin`]:template.flags[ID].splitOrigin} : {[`flags.${ID}.-=splitOrigin`]:null})});
     } catch(restoreError) {retainLock=true;throw new AggregateError([error,restoreError],'Split interrupted; copies retained. Check the original Horde before retrying.');}
     await doc.unsetFlag(ID,'naming');if(oldNaming)await doc.setFlag(ID,'naming',oldNaming);
     for(const {combat,ids} of newCombatants)await combat.deleteEmbeddedDocuments('Combatant',ids);
@@ -128,6 +128,7 @@ async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=M
     for(const {combat,original} of parents)await combat.updateEmbeddedDocuments('Combatant',[original]);
     if(active&&game.combat?.started){const turn=game.combat.turns.findIndex(c=>c.id===active);if(turn>=0&&turn!==game.combat.turn)await game.combat.update({turn});}
     for(const [combat,ledger] of ledgers) {if(ledger)await combat.setFlag(ID,'ledger',ledger);else await combat.unsetFlag(ID,'ledger');}
+    for(const [combat,session] of sessions){if(session)await combat.setFlag(ID,'session',session);else if(combat.getFlag(ID,'session'))await combat.unsetFlag(ID,'session');}
     throw error;
   } finally {if(!retainLock)await doc.unsetFlag(ID,'splitLock');}
 }

@@ -52,6 +52,7 @@ export function attackContext(activity, fallbackActor=activity?.actor) {
     const activities=Array.from(item?.system.activities?.values?.() ?? item?.system.activities ?? []);
     const equivalent=item?.system.activities?.get(activity.id) ?? activities.find(a=>a.type==='attack' && a.name===activity.name);
     if (equivalent) activity=equivalent;
+    else if(settings(current.token,actor).enabled)throw Error(t('noEquivalentAttack'));
   }
   return {doc:current.token,actor,activity,combatant:current,
     guard:{combat:combat.uuid,combatant:current.uuid ?? current.id,round:combat.round}};
