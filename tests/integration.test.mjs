@@ -45,7 +45,7 @@ class FakeRoll {
 globalThis.Roll=FakeRoll;
 globalThis.CONST={DICE_ROLL_MODES:{PUBLIC:'publicroll',PRIVATE:'gmroll',BLIND:'blindroll',SELF:'selfroll'}};
 globalThis.CONFIG={Dice:{DamageRoll:FakeRoll}};
-const {resolve,interceptAttack,visibilityChoices,toggleTokens,sceneControls,interceptChat,attackDialog,interceptDamage}=await import('../scripts/main.mjs');
+const {resolve,interceptAttack,visibilityChoices,toggleTokens,sceneControls,interceptChat,attackDialog,interceptDamage,renderSheet,hordeMenu}=await import('../scripts/main.mjs');
 const activity={actor,item:{name:'Axe',system:{}},getDamageConfig:()=>({rolls:[{}]}),
  rollDamage:async(...args)=>{damageCalls.push(args);return [{}];}};
 const opts={enabled:true,group:'Orcs',count:8,attacks:1,lane:null,bonus:'5',target:target.uuid,rollMode:'blindroll'};
@@ -362,4 +362,38 @@ test('simultaneous clicks on one sheet consume only one initiative attack',async
  flags.set('ledger',{schema:2,scope:owner.uuid,entries:[['one',{...base,lane:1}],['two',{...base,lane:2}]],turns:[]});
  const result=await resolve({doc,actor,activity,options:{...opts,bonus:'9',count:1}});
  assert.equal(result.hits,1);assert.equal(damageCalls.length,1);assert.equal(result.plans[0].profiles.length,1);
+ });
+
+ test('the NPC sheet has one Horde menu before its source and XP elements',()=>{
+ const oldHTMLElement=globalThis.HTMLElement,oldDocument=globalThis.document;
+ class Element {
+ constructor(kind='div'){this.kind=kind;this.children=[];this.dataset={};this.listeners={};}
+ append(child){child.remove();this.children.push(child);child.parent=this;}
+ prepend(child){child.remove();this.children.unshift(child);child.parent=this;}
+ remove(){if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);this.parent=null;}
+ addEventListener(name,fn){this.listeners[name]=fn;}
+ querySelectorAll(selector){return this.children.flatMap(c=>[...(selector==='[data-ya-horde-key]'&&c.dataset.yaHordeKey?[c]:[]),...c.querySelectorAll(selector)]);}
+ querySelector(selector){
+ if(selector==='.window-header'||selector==='header')return this.children.find(c=>c.kind==='header')??null;
+ if(selector==='.header-elements')return this.children.find(c=>c.kind==='header-elements')??null;
+ const key=selector.match(/data-ya-horde-key="([^"]+)"/)?.[1];return this.querySelectorAll('[data-ya-horde-key]').find(c=>c.dataset.yaHordeKey===key)??null;
+ }
+ }
+ try {
+ globalThis.HTMLElement=Element;globalThis.document={createElement:kind=>new Element(kind)};
+ const el=new Element(),header=new Element('header'),elements=new Element('header-elements'),source=new Element('source');
+ el.append(header);header.append(elements);elements.append(source);
+ for(const key of ['configure','forceHit','hordeSave']){const old=new Element('button');old.dataset.yaHordeKey=key;header.append(old);}
+ const npc=initiativeGoblin(1);const app={actor:npc.actor,element:el};renderSheet(app,el);renderSheet(app,el);
+ const buttons=el.querySelectorAll('[data-ya-horde-key]');assert.equal(buttons.length,1);assert.equal(buttons[0].textContent,'Horde');
+ assert.equal(elements.children[0],buttons[0]);assert.equal(elements.children[1],source);
+ } finally {globalThis.HTMLElement=oldHTMLElement;globalThis.document=oldDocument;}
+ });
+ test('the single Horde menu exposes configuration, force, save and splitting',async()=>{
+ const previous=foundry.applications;let opened;
+ foundry.applications={api:{DialogV2:{wait:async options=>{opened=options;return null;}}}};
+ try {const npc=initiativeGoblin(1);await hordeMenu(npc.token,npc.actor);
+ assert.deepEqual(opened.buttons.map(b=>b.action),['configure','force','save','split']);
+ assert.equal(opened.buttons.find(b=>b.action==='split').disabled,true);
+ } finally {foundry.applications=previous;}
  });
