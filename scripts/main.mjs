@@ -1,3 +1,4 @@
+import {migrateSceneNames} from './naming.mjs';
 import {settingsUI} from './settings.mjs';
 import {mergeTokens} from './merge.mjs';
 import {splitToken} from './split.mjs';
@@ -478,7 +479,7 @@ function selectedMergeMembers(doc) {
 export async function splitMergeHorde(doc) {
   requireAuthority();
   const selected=selectedMergeMembers(doc);
-  if(selected.length&&selected.every(d=>d.actor?.type==='npc'&&(!settings(d).enabled||settings(d).count===1))) {
+  if(selected.length>1) {
     return enqueue(async()=>{const result=await mergeTokens(selected,{preferred:doc,requireAuthority});ui.combat?.render();ui.notifications.info(t('mergeDone',{count:result.count}));return result;});
   }
   doc??=(canvas.tokens?.controlled?.length===1 ? canvas.tokens.controlled[0].document : null);
@@ -591,6 +592,7 @@ Hooks.once('ready',async () => {
     save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,split:()=>splitHorde(selectedSource().doc),splitMerge:splitMergeHorde,mergeSelected:()=>splitMergeHorde(),attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
   Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
   Hooks.on('createCombatant',guard(c=>authority() && c.token?.getFlag(ID,'population') && syncHordeName(c.token,settings(c.token).count)));
+  if(authority())await migrateSceneNames();
   if(authority())for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {
     const population=token.getFlag(ID,'population');if(population)await syncHordeName(token,settings(token).enabled ? population.current : 1,population);
   }

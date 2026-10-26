@@ -51,6 +51,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
   const maxima=pop.maxima?pop.maxima.filter((value,i)=>pop.members[i]>0):Array(count).fill(pop.baseHP);
   const hp=distributeHP(doc.actor.system.attributes.hp.value,count,maxima,mode,random);
   const shape=hordeSize(1,pop.baseSize),positions=splitPositions(doc,count,shape.width,scene);
+  const oldNaming=foundry.utils.deepClone(doc.getFlag(ID,'naming'));
   const generated=await splitNames(doc,pop.baseName,count);
   const actorData=doc.actor.toObject(),template=doc.toObject();
   const provenance={source:doc.uuid,initial:pop.initial,count,totalHP:hp.reduce((a,b)=>a+b,0),mode,initiativeMode};
@@ -58,9 +59,9 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     const data=foundry.utils.deepClone(template);delete data._id;delete data._stats;
     data.actorLink=false;data.name=generated[i].name;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
     data.flags??={};data.flags[ID]={...data.flags[ID],horde:{...config,count:1},
-      population:{...pop,baseHP:maxima[i],initial:1,current:1,soloName:data.name},naming:generated[i].meta,splitOrigin:provenance};delete data.flags[ID].splitLock;
-    if(pop.maxima)data.flags[ID].population.maxima=[maxima[i]];
-    if(Array.isArray(pop.members))data.flags[ID].population.members=[hp[i]];
+      population:{...pop,baseHP:maxima[i],initial:1,current:1,soloName:data.name},naming:generated[i].meta,splitOrigin:provenance};delete data.flags[ID].splitLock;delete data.flags[ID].mergeLock;delete data.flags[ID].mergeOrigin;
+    data.flags[ID].population.maxima=[maxima[i]];
+    data.flags[ID].population.members=[hp[i]];
     data.delta={...(data.delta ?? {}),name:actorData.name,system:foundry.utils.deepClone(actorData.system),
       items:foundry.utils.deepClone(actorData.items ?? []),effects:foundry.utils.deepClone(actorData.effects ?? []),flags:foundry.utils.deepClone(actorData.flags ?? {})};
     data.delta.system.attributes.hp={...data.delta.system.attributes.hp,max:maxima[i],value:hp[i],temp:i===0?(actorData.system.attributes.hp.temp??0):0};
@@ -97,7 +98,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
       'system.traits.size':shape.size},{yaHordePopulation:true});
     await doc.update({name:first.name,x:first.x,y:first.y,width:first.width,height:first.height,
       [`flags.${ID}.horde`]:first.flags[ID].horde,[`flags.${ID}.population`]:first.flags[ID].population,
-      [`flags.${ID}.splitOrigin`]:provenance,[`flags.${ID}.naming`]:first.flags[ID].naming});
+      [`flags.${ID}.splitOrigin`]:provenance,[`flags.${ID}.naming`]:first.flags[ID].naming,[`flags.${ID}.-=mergeOrigin`]:null,[`flags.${ID}.naming.-=reservedNumbers`]:null});
     await syncHordeName(doc,1,first.flags[ID].population);
     if(initiativeMode==='reroll')for(const {combat,ids,original} of newCombatants) {
       await combat.rollInitiative([original,...ids],{updateTurn:true});
@@ -112,6 +113,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
       await doc.update({name:template.name,x:template.x,y:template.y,width:template.width,height:template.height,
         [`flags.${ID}.horde`]:config,[`flags.${ID}.population`]:pop,...(template.flags?.[ID]?.splitOrigin ? {[`flags.${ID}.splitOrigin`]:template.flags[ID].splitOrigin} : {[`flags.${ID}.-=splitOrigin`]:null})});
     } catch(restoreError) {retainLock=true;throw new AggregateError([error,restoreError],'Split interrupted; copies retained. Check the original Horde before retrying.');}
+    await doc.unsetFlag(ID,'naming');if(oldNaming)await doc.setFlag(ID,'naming',oldNaming);
     for(const {combat,ids} of newCombatants)await combat.deleteEmbeddedDocuments('Combatant',ids);
     if(newTokens.length)await scene.deleteEmbeddedDocuments('Token',newTokens.map(t=>t.id));
     for(const {combat,original} of parents)await combat.updateEmbeddedDocuments('Combatant',[original]);

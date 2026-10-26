@@ -60,6 +60,7 @@ export function settingsUI({t,esc,dialog,field,select,check,value,requireAuthori
   for(const [key,defaultValue] of Object.entries(NAMING_DEFAULTS))game.settings.register(ID,key,{scope:'world',config:false,type:typeof defaultValue==='boolean'?Boolean:String,default:defaultValue});
   game.settings.register(ID,'hordeHPMode',{scope:'world',config:false,type:String,default:'max'});
   game.settings.register(ID,'hordeHPFormula',{scope:'world',config:false,type:String,default:''});
+  game.settings.register(ID,'sceneNamingVersion',{scope:'world',config:false,type:Number,default:0});
   game.settings.register(ID,'namingCounters',{scope:'world',config:false,type:Object,default:{entries:[]}});
  }
  return {open,register,panelContent};

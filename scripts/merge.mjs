@@ -23,7 +23,8 @@ export function mergePlan(tokens,preferred) {
     if(doc.getFlag(ID,'splitLock')||doc.getFlag(ID,'mergeLock'))throw Error('A selected token is already being split or merged');
     if(config.enabled&&Number(config.count??1)!==1)throw Error('Merge only individual living creatures; split larger Hordes first');
     const livingIndex=pop?.members?.findIndex(hp=>hp>0)??0;
-    const hp=Number(actor.system.attributes.hp.value),max=Number(pop?.maxima?.[Math.max(0,livingIndex)] ?? pop?.baseHP ?? actor.system.attributes.hp.max),size=pop?.baseSize ?? actor.system.traits.size;
+    const single=Number(pop?.initial??1)===1;
+    const hp=Number(actor.system.attributes.hp.value),max=Number(single?actor.system.attributes.hp.max:(pop?.maxima?.[Math.max(0,livingIndex)] ?? pop?.baseHP ?? actor.system.attributes.hp.max)),size=pop?.baseSize ?? actor.system.traits.size;
     if(!Number.isSafeInteger(hp)||!Number.isSafeInteger(max)||hp<1||hp>max)throw Error('Each selected creature must have 1 to its base maximum HP');
     const baseActorId=doc.baseActor?.id??doc.actorId,attackLimit=Number(config.attackLimit??1);
     if(!baseActorId||!Number.isSafeInteger(attackLimit)||attackLimit<1||attackLimit>10)throw Error('Selected creatures have invalid base actor or attack limits');

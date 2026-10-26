@@ -122,6 +122,6 @@ export async function syncPopulation(doc,options={}) {
 export async function populationActorUpdated(actor,changes,options={}) {
   if (options.yaHordePopulation) return;
   const doc=actor.token;
-  if(doc?.getFlag(ID,'mergeLock'))return;
+  if(doc?.getFlag(ID,'mergeLock')||doc?.getFlag(ID,'splitLock'))return;
   if (doc?.getFlag(ID,'population')) await syncPopulation(doc);
 }
