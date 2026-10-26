@@ -11,7 +11,7 @@ function flags(object){return Object.assign(object,{getFlag(id,key){return this.
 function fixture({linked=false,failUpdate=false,failDelete=false}={}){
  const scene={id:'s',grid:{size:100},width:3000,height:3000,tokens:new Map(),
  async deleteEmbeddedDocuments(type,ids){assert.equal(type,'Token');if(failDelete)throw Error('delete failed');for(const id of ids)this.tokens.delete(id);},
- async createEmbeddedDocuments(type,data){return data.map((d,i)=>makeToken('split'+i,d));}};
+ async createEmbeddedDocuments(type,data){return data.map(d=>{const i=this.nextToken??0;this.nextToken=i+1;return makeToken('split'+i,d);});}};
  function actor(system){return {name:'Goblin',type:'npc',system:structuredClone(system),getFlag:()=>null,
   toObject(){return {name:this.name,system:structuredClone(this.system),items:[],effects:[],flags:{}};},async update(data){apply(this,data);}};}
  function makeToken(id,data={}){
@@ -189,4 +189,42 @@ test('deleted combat cleans only its own memory and summary can be disabled',asy
  let reports=0;globalThis.ChatMessage={create:async()=>reports++};game.settings.values.set('combatSummary',false);
  const merged=await mergeTokens(docs);const other={id:'other',getFlag:()=>({combat:'Combat.other',session:'other'}),unsetFlag:async()=>{throw Error('must not clear another combat');}};scene.tokens.set(other.id,other);
  await finishCombat(combat,{deleted:true});assert.equal(reports,0);assert.equal(merged.token.getFlag(ID,'battle'),undefined);assert.equal(merged.token.actor.system.attributes.hp.value,7);
+});
+
+test('stale split flags on completed single tokens do not block remerging',async()=>{
+ const {docs}=fixture();const merged=await mergeTokens(docs),split=await splitToken(merged.token);
+ for(const token of split.tokens)await token.setFlag(ID,'splitLock',true);
+ const result=await mergeTokens(split.tokens);assert.equal(result.count,3);assert.equal(result.hp,7);assert.equal(result.token.getFlag(ID,'splitLock'),undefined);assert.equal(result.token.getFlag(ID,'mergeLock'),undefined);
+});
+test('stale merge flag on a completed Horde is cleared before the next split',async()=>{
+ const {docs}=fixture();const {token}=await mergeTokens(docs);await token.setFlag(ID,'mergeLock',true);
+ const split=await splitToken(token);assert.equal(split.tokens.length,3);assert.ok(split.tokens.every(doc=>!doc.getFlag(ID,'mergeLock')&&!doc.getFlag(ID,'splitLock')));
+});
+test('genuinely active operations remain exclusive until the async task completes',async()=>{
+ const {withTokenOperation}=await import('../scripts/token-operations.mjs');const {docs}=fixture();let release;
+ const pending=withTokenOperation(docs,()=>new Promise(resolve=>{release=resolve;}));
+ await assert.rejects(mergeTokens(docs),/already being split or merged/);
+ assert.throws(()=>mergePlan(docs),/already being split or merged/);
+ release();await pending;assert.equal((await mergeTokens(docs)).count,3);
+});
+test('interrupted partial merge keeps source snapshots instead of clearing its lock and duplicating HP',async()=>{
+ const {docs,scene}=fixture();await docs[0].setFlag(ID,'mergeLock',true);await docs[0].setFlag(ID,'mergeOrigin',{tokens:docs.map(doc=>doc.toObject())});
+ await assert.rejects(mergeTokens(docs),/source tokens still present/);assert.equal(scene.tokens.size,3);assert.equal(docs[0].getFlag(ID,'mergeLock'),true);
+});
+
+test('split Hordes 1 and 2, merge former 2 as 1, then former 1 as 2 without binding members to old labels',async()=>{
+ const {docs,scene}=fixture();game.combats=new Map();game.combat=null;scene.tokens.delete(docs[2].id);
+ for(const token of docs.slice(0,2)){
+  token.actor.system.attributes.hp.value=7;
+  await token.setFlag(ID,'horde',{enabled:true,count:8,attackLimit:1,group:'Goblins'});await syncPopulation(token);
+ }
+ assert.deepEqual(docs.slice(0,2).map(t=>t.name),['Goblin 1 (Horde)','Goblin 2 (Horde)']);
+ const first=await splitToken(docs[0]),second=await splitToken(docs[1]);
+ assert.equal(scene.tokens.size,16);assert.deepEqual([...first.tokens,...second.tokens].map(t=>t.name),Array.from({length:16},(_,i)=>`Goblin ${i+1}`));
+ // A legacy lock must not make a member's old Horde number behave like ownership.
+ for(const token of first.tokens)await token.setFlag(ID,'splitLock',true);
+ const formerSecond=await mergeTokens(second.tokens);assert.equal(formerSecond.token.name,'Goblin 1 (Horde)');
+ const formerFirst=await mergeTokens(first.tokens);assert.equal(formerFirst.token.name,'Goblin 2 (Horde)');
+ assert.equal(scene.tokens.size,2);assert.equal(formerSecond.max+formerFirst.max,112);assert.equal(formerSecond.hp+formerFirst.hp,112);
+ const again=await splitToken(formerSecond.token);assert.deepEqual(again.tokens.map(t=>t.name),Array.from({length:8},(_,i)=>`Goblin ${i+1}`));
 });
