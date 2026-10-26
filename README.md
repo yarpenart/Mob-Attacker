@@ -18,7 +18,7 @@ Releases are published manually with `module.json` and `mob-attacker.zip` attach
 
 ## What changed in 0.4.1
 
-**Merged Horde initiative** is a world setting with **Highest**, **Median** (default), and **Lowest** options. It uses the rolled initiatives of the selected creatures in each combat. Unrolled entries are ignored; if none have rolled, the Horde stays unrolled. For an even number of results, the median is the average of the two middle values, including fractional results. Splitting again gives every member the resulting Horde initiative.
+**Merged Horde initiative** is a world setting with **Highest**, **Median** (default), and **Lowest** options. It uses the rolled initiatives of the selected creatures in each combat. Unrolled entries are ignored; if none have rolled, the Horde stays unrolled. For an even number of results, median uses the higher of the two middle values, without averaging. For example, `15, 12, 10, 7, 5, 1` produces `10`. Splitting again gives every member the resulting Horde initiative.
 
 ## What changed in 0.4.0
 
