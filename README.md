@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.4.2
+# YarpenArt: Mob Attacker — 0.4.3
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,10 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.4.3
+
+Fixed immediate remerging after splitting. Compatibility now uses the base NPC actor identity rather than synthetic actor display names, which can differ between numbered split members. Equivalent numeric/string attack limits are normalized. The stored base creature name is retained when remerging, so the resulting token remains `Goblin (Horde)` rather than acquiring a member number. Distinct base creatures, base sizes, base maximum HP, or attack limits remain incompatible, with more specific error messages.
 
 ## What changed in 0.4.2
 
