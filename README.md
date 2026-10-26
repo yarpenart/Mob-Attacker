@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.1.3
+# YarpenArt: Mob Attacker — 0.2.0
 
 Moduł dla **Foundry VTT v14 / D&D5e 5.3.3**. Zastępuje rzuty na trafienie hordy tabelą Mob Attacks z 2014 r. Rzuca obrażenia automatycznie po przekroczeniu progu. Wymaga **libWrapper**. Dice So Nice jest opcjonalne; obrażenia korzystają ze standardowych rzutów systemu.
 
@@ -14,7 +14,13 @@ Instalacja przez manifest (Foundry / Forge):
 https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 ```
 
-Wydanie v0.1.3: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.1.3 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+Wydanie v0.2.0: https://github.com/yarpenart/Mob-Attacker/releases/tag/v0.2.0 . Wydania publikowane są ręcznie wraz z plikami `module.json` i `mob-attacker.zip`.
+
+## Zmiany w 0.2.0
+
+- Multiattack zasila wspólny progres celu; limit prób pozostaje niezależny.
+- Liczebność skaluje HP i rozmiar tokena, maleje z utratą HP i zachowuje stan początkowy.
+- Save’y hord używają tabeli, ręcznego DC lub wymuszonej liczby sukcesów, z podziałem obrażeń zaklęć i przyciskiem zastosowania.
 
 ## Zmiany w 0.1.3
 
@@ -76,11 +82,11 @@ Próg pochodzi z **KP − premia do ataku**:
 | 19 | 10 |
 | 20 lub więcej | 20 |
 
-Przykład: osiem orków z premią +5 przeciw KP 19 potrzebuje wyniku 14, czyli trzech atakujących na trafienie. Daje to **2 trafienia**, a postęp 2/3 może dopełnić następny token tej hordy w tej lub kolejnej rundzie pod tym samym numerem ataku.
+Przykład: osiem orków z premią +5 przeciw KP 19 potrzebuje wyniku 14, czyli trzech atakujących na trafienie. Daje to **2 trafienia**, a postęp 2/3 może dopełnić następny token tej hordy w tej lub kolejnej rundzie niezależnie od numeru ataku.
 
-Liczniki są oddzielne dla **hordy, celu, premii do ataku, KP i numeru ataku**. Zmiana KP, np. Shield, zaczyna oddzielny licznik dla nowej wartości. Normalne ataki przeciwników spoza hordy nie dodają postępu.
+Liczniki są oddzielne dla **hordy, celu, premii do ataku i KP**. Zmiana KP, np. Shield, zaczyna oddzielny licznik dla nowej wartości. Normalne ataki przeciwników spoza hordy nie dodają postępu.
 
-W ramach jednej rundy numer ataku domyślnie rośnie dla danego tokena w tej hordzie: pierwsze kliknięcie 1, drugie 2 itd. Pierwsze ataki różnych tokenów współdzielą numer 1. Dzięki temu ten sam NPC nie jest dwukrotnie traktowany jako kolejny członek hordy przy Multiattack. Przy dzieleniu jednej reprezentowanej grupy pomiędzy cele lub przy nierównych sekwencjach ustaw numer ręcznie. Ponowne użycie tego samego tokena z tym samym numerem, celem, premią i KP jest blokowane.
+Wszystkie dozwolone ataki, w tym drugi atak Multiattacku, zasilają wspólny licznik danego celu. Numer ataku służy wyłącznie do egzekwowania limitu prób uczestnika inicjatywy. Nie rozdziela już postępu trafień. Liczniki v0.1.3 są łączone przy pierwszym ataku po aktualizacji; niewykorzystane pełne trafienie jest rozpatrywane wtedy wraz z nowym atakiem.
 
 Liczniki zapisują się w danych walki i **zachowują postęp między rundami**. Nowa runda rozpoczyna tylko numerację ataków tokena od 1; nie zeruje licznika trafień. W nowym starciu obowiązuje oddzielny licznik. Poza rozpoczętą walką dane zapisują się na scenie i kolejne ataki domyślnie zasilają slot 1. Użyj `/horde reset`, jeśli chcesz ręcznie rozpocząć liczenie od zera. Reset nie przywraca amunicji i nie cofa obrażeń.
 
@@ -113,10 +119,10 @@ Pozostałe komendy:
 /horde reset    wyzeruj bieżące liczniki
 ```
 
-## Zakres i ograniczenia wersji 0.1.2
+## Zakres integracji
 
 - **Obsługa przez GM.** Przy kilku aktywnych GM operacje hordy wykonuje GM z pierwszym alfabetycznie ID użytkownika. Pozwala to uniknąć nadpisywania wspólnych liczników. Pozostali mogą normalnie wykonywać ataki spoza hordy. Wyliczenia i komunikaty reguł są zawsze szeptem do GM. Wybrana widoczność dotyczy samych obrażeń.
-- Integracja dotyczy aktywności **attack**: broni, ataków zaklęć, ataków zdolności. Zaklęcia na rzut obronny, obszarowe i z automatycznym trafieniem zachowują standardowy przebieg. Tabela KP nie zastępuje ich zasad.
+- Integracja dotyczy aktywności **attack**: broni, ataków zaklęć, ataków zdolności. Save’y hord używają tabeli liczebności i podziału obrażeń opisanych poniżej. Automatyczne trafienia pozostają poza tabelą KP.
 - Brak krytyków, przewagi i utrudnienia w wyliczaniu trafień hordy, zgodnie z uproszczoną tabelą. Dla walki indywidualnej wyłącz hordę.
 - W grupie o różnych obrażeniach moduł wybiera **najwyższe średnie obrażenia** spośród stworzeń składających się na każde trafienie. Zachowuje formułę, typy i dane skalowania wcześniejszego atakującego także po odświeżeniu strony. Dla standardowych formuł typu `2d6+3` średnia jest dokładna. Dla niestandardowych formuł z wybieraniem kości, przerzutami lub nieliniowymi operatorami używa przybliżenia `(minimum + maksimum) / 2`. Porównanie nie uwzględnia odporności celu ani warunkowych efektów po trafieniu.
 - Zwykłe użycie aktywności przed atakiem zachowuje zużycie slotów/czasów użycia systemu. Jeden reprezentacyjny token nie modeluje oddzielnych pul slotów wszystkich członków hordy. Ręczna komenda nie zużywa slotów ani zasobów przedmiotu.
@@ -126,7 +132,7 @@ Pozostałe komendy:
 
 ## English quick start
 
-Enable libWrapper and this module on Foundry v14 with dnd5e 5.3.3. Mark an NPC using **Horde** in initiative, token HUD, the NPC sheet, or `/horde config`. Set the same group identifier for separate tokens; set count to 1 for individual members or to the number represented by one token. Select multiple NPC tokens and use the group icon on the Token toolbar to toggle Horde membership in one click. Target a creature and use any native attack activity directly from its sheet. Rules and counters are always whispered to GMs; public damage cards contain only ordinary damage information. The module counts hits from the Mob Attacks table and rolls normal activity damage once per hit. HP application remains manual.
+Enable libWrapper and this module on Foundry v14 with dnd5e 5.3.3. Mark an NPC using **Horde** in initiative, token HUD, the NPC sheet, or `/horde config`. Set the same group identifier for separate tokens; set count to 1 for individual members or to the number represented by one token. Select multiple NPC tokens and use the group icon on the Token toolbar to toggle Horde membership in one click. Target a creature and use any native attack activity directly from its sheet. Rules and counters are always whispered to GMs; public damage cards contain only ordinary damage information. The module counts hits from the Mob Attacks table and rolls normal activity damage once per hit. Attack damage application remains manual. Horde saves have a GM-only damage application button; see the detailed sections below.
 
 Manual attacks: `/horde 5 | 1d6+3 | 8 | 1 | Orcs`, or `/r 1d20+5 #horde | 1d6+3`. Progress persists across combat rounds and page reloads. Only automatic multiattack numbering restarts each round. Use `/horde reset` to clear progress manually. Save-based spells retain their normal rules. This initial version is GM-operated, ranks mixed groups by their damage formulas, and has not been run inside a licensed Foundry instance.
 
@@ -148,3 +154,31 @@ API dla makr GM:
 await game.modules.get('yarpenart-mob-attacker').api.attack();
 await game.modules.get('yarpenart-mob-attacker').api.configure();
 ```
+
+## HP i rozmiar hordy (0.2.0)
+
+Po zapisaniu konfiguracji „Creatures represented by this token” skaluje maksymalne HP tokena: bazowe HP jednej istoty × początkowa liczebność. Ponowny zapis nie mnoży HP drugi raz. Liczebność bieżąca = zaokrąglone w górę HP / bazowe HP, maksymalnie do początkowej liczby; 0 HP oznacza 0 istot. Zapisane są bazowe HP, rozmiar oraz początkowa liczebność. Leczenie może przywracać członków. Zmiana liczby w konfiguracji ustala nowy stan początkowy i zachowuje otrzymane obrażenia. Wyłączenie hordy przywraca bazowe HP i rozmiar.
+
+Token połączony z aktorem jest odłączany przed zmianą HP, aby nie zmieniać innych kopii tego NPC. Zmiany dotyczą tokena i jego syntetycznej karty; bazowy aktor w katalogu nie jest powiększany.
+
+| Żywe istoty | Rozmiar bazowo Small | Rozmiar bazowo Medium | Kratki |
+|---|---|---|---|
+| 1 | Small | Medium | 1×1 |
+| 2 | Medium | Medium | 1×1 |
+| 3–5 | Large | Large | 2×2 |
+| 6–9 | Huge | Huge | 3×3 |
+| ≥10 | Gargantuan | Gargantuan | 4×4 |
+
+Większe istoty zachowują przynajmniej swój bazowy rozmiar. Liczebność aktualizuje się po zmianie HP, także po ręcznej edycji. Nowe i stare hordy są inicjalizowane podczas konfiguracji, włączenia lub pierwszego użycia.
+
+## Save hordy i obrażenia obszarowe
+
+GM może kliknąć zwykły save na karcie zaklęcia przy zaznaczonym tokenie hordy. Moduł odczyta cechę i DC. Okno „Save hordy” na karcie NPC oraz `/horde save` pozwalają też wpisać DC ręcznie. Pole premii uwzględnia natywny modyfikator, biegłość i premie; można je edytować. Tabela określa liczbę sukcesów, np. potrzebne 6–12 oznacza sukces co drugiej istoty. Tokeny tej samej grupy współdzielą resztę save’ów dla konkretnego użycia zaklęcia. Save’y ręczne dzielą progres według grupy, cechy, DC i premii w bieżącej walce/scenie; `/horde reset` czyści te liczniki.
+
+W trybie „Wymuś liczbę sukcesów” GM wpisuje 0–N; N wymusza sukces całej hordy. Wymuszenie zeruje resztę tego licznika save’ów. Każdy token należy rozpatrzyć raz na dane użycie efektu. Ponowny save z tej samej karty zaklęcia jest blokowany; tryb wymuszony może zastąpić oczekujący wynik przed zastosowaniem obrażeń.
+
+Dla Fireballa: rozpatrz save z jego karty i użyj jej natywnego przycisku obrażeń. Obrażenia zostaną dołączone do podsumowania save’a GM, także jeśli rzut obrażeń wykonano przed save’em. W oknie można zamiast tego wpisać liczbę lub formułę obrażeń i identyfikator ich typu. Wybierz zero, połowę lub pełne obrażenia przy sukcesie. Efekt obejmuje wszystkie żywe istoty reprezentowane przez token.
+
+Moduł oblicza obrażenia na jedną istotę osobno dla sukcesu i porażki, uwzględnia odporności i zaokrąglenia systemu, następnie mnoży je przez odpowiednie liczby istot. Jest to pula HP hordy: nadmiar obrażeń przechodzi na pulę. **Zastosuj obrażenia save’a hordy** odejmuje sumę od HP i aktualizuje liczebność/rozmiar. Nie stosuj dodatkowo zwykłych obrażeń systemu do tego samego tokena. Przycisk ma trwałą blokadę powtórnego zastosowania; zmiana HP między save’em a zastosowaniem wymaga ponownego rozpatrzenia. Temp HP jest jedną wspólną pulą tokena.
+
+Wszystkie podsumowania, DC i przyciski modułu są dostępne tylko GM. Nie są tworzone fikcyjne rzuty d20, więc automatyzacje wymagające takiego rzutu (np. zewnętrzne workflow save’ów) nie otrzymują pozornego wyniku. Nie dodajemy automatycznie efektów/statusów zaklęć.
