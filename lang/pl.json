@@ -156,8 +156,12 @@
     "rerollHordeHP": "Wylosuj ponownie maksymalne HP istot teraz",
     "memberMaxima": "Zapisane maksymalne HP istot: {values}",
     "combatSummary": "Prywatne podsumowanie hord po walce",
-    "combatSummaryHint": "Po zakończeniu walki wyślij GM-om liczbę unikalnych istot w hordach oraz zabitych. Split i merge nie liczą ich ponownie.",
+    "combatSummaryHint": "Po zakończeniu walki wyślij GM-om sumę i podział według bazowego rodzaju jednostki: łącznie, ocalało i zginęło. Split i merge nie liczą istot ponownie.",
     "combatSummaryTitle": "Hordy — podsumowanie walki",
-    "combatSummaryText": "Łącznie istot: {total}. Zabitych: {killed}. Ocalałych: {survived}."
+    "combatSummaryText": "Łącznie istot: {total}. Zabitych: {killed}. Ocalałych: {survived}.",
+    "summaryUnit": "Rodzaj jednostki",
+    "summaryTotal": "Łącznie",
+    "summarySurvived": "Ocalało",
+    "summaryKilled": "Zginęło"
   }
 }

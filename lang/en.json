@@ -156,8 +156,12 @@
     "rerollHordeHP": "Reroll member maximum HP now",
     "memberMaxima": "Stored member maximum HP: {values}",
     "combatSummary": "Private Horde combat summary",
-    "combatSummaryHint": "After combat ends, send all GMs the number of unique Horde creatures and how many died. Splitting and merging do not count them twice.",
+    "combatSummaryHint": "After combat ends, send all GMs totals and a breakdown by base creature type: total, survived and killed. Splitting and merging do not count creatures twice.",
     "combatSummaryTitle": "Hordes — combat summary",
-    "combatSummaryText": "Total creatures: {total}. Killed: {killed}. Survived: {survived}."
+    "combatSummaryText": "Total creatures: {total}. Killed: {killed}. Survived: {survived}.",
+    "summaryUnit": "Unit type",
+    "summaryTotal": "Total",
+    "summarySurvived": "Survived",
+    "summaryKilled": "Killed"
   }
 }
