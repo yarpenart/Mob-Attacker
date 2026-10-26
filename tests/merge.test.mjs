@@ -1,3 +1,4 @@
+import {finishCombat,trackPopulation,memoryScope} from '../scripts/combat-memory.mjs';
 import {mockSettings} from './test-settings.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -121,7 +122,7 @@ test('the last survivor of a rolled Horde merges using its own cap rather than a
  const merged=await mergeTokens(docs);merged.token.actor.system.attributes.hp.value=4;await syncPopulation(merged.token);
  assert.equal(merged.token.getFlag(ID,'horde').count,1);
  const [extra]=await scene.createEmbeddedDocuments('Token',[{actorId:'goblin',delta:{system:{attributes:{hp:{max:7,value:7,temp:0}},traits:{size:'sm'}}}}]);
- const result=await mergeTokens([merged.token,extra]);assert.equal(result.max,12);assert.equal(result.hp,11);assert.equal(result.count,2);
+ const result=await mergeTokens([merged.token,extra]);assert.equal(result.max,15);assert.equal(result.hp,11);assert.equal(result.count,2);
 });
 
 test('native rolled HP Horde can split and immediately merge repeatedly without rerolls or cap loss',async()=>{
@@ -151,4 +152,41 @@ test('individual actor maximum HP wins over stale population base HP',()=>{
  const {docs}=fixture();docs[0].actor.system.attributes.hp={max:11,value:11,temp:0};
  docs[0].flags[ID]={horde:{enabled:true,count:'1'},population:{initial:1,current:1,baseHP:3,baseSize:'sm',members:[11],maxima:[3]}};
  assert.equal(mergePlan(docs).members[0].max,11);
+});
+
+
+test('individual initiatives survive repeated merge/split; summary counts unique casualties',async()=>{
+ const {docs,scene,combat}=fixture();game.scenes=new Map([['s',scene]]);game.messages={contents:[]};game.users=[{id:'gm',isGM:true},{id:'player',isGM:false}];
+ const messages=[];globalThis.ChatMessage={create:async data=>messages.push(data)};let rolls=0;
+ combat.rollInitiative=async ids=>{rolls+=ids.length;for(const [i,id] of ids.entries())combat.combatants.get(id).initiative=20+i;};
+ const merged=await mergeTokens(docs);const sessionId=combat.getFlag(ID,'session').id;
+ assert.equal(combat.getFlag(ID,'session').members.length,3);
+ const split=await splitToken(merged.token,{initiativeMode:'reroll'});
+ assert.equal(rolls,0);assert.deepEqual(split.tokens.map(doc=>[...combat.combatants.values()].find(row=>row.tokenId===doc.id).initiative),[8,17,12]);
+ await mergeTokens(split.tokens);const splitAgain=await splitToken(merged.token,{initiativeMode:'reroll'});assert.equal(rolls,0);
+ await mergeTokens(splitAgain.tokens);merged.token.actor.system.attributes.hp.value=2;await syncPopulation(merged.token);
+ assert.equal(merged.token.getFlag(ID,'population').members.filter(hp=>hp===0).length,2);
+ const scope=memoryScope(),save={scope,status:'pending'};game.messages.contents.push({getFlag:(id,key)=>key==='save'?save:null,async update(data){save.status=data[`flags.${ID}.save.status`];}});
+ await combat.setFlag(ID,'saveLedger',[['old',1]]);const result=await finishCombat(combat,{t:(key,values)=>values?JSON.stringify(values):key});
+ assert.deepEqual(result,{total:3,killed:2,survived:1});assert.equal(messages.length,1);assert.deepEqual(messages[0].whisper,['gm']);assert.equal(save.status,'expired');
+ assert.equal(combat.getFlag(ID,'session'),undefined);assert.equal(combat.getFlag(ID,'ledger'),undefined);assert.equal(combat.getFlag(ID,'saveLedger'),undefined);
+ assert.equal(merged.token.getFlag(ID,'battle'),undefined);assert.equal(merged.token.actor.system.attributes.hp.value,2);
+ await finishCombat(combat);assert.equal(messages.length,1);
+ await trackPopulation(merged.token,merged.token.getFlag(ID,'population'));assert.notEqual(combat.getFlag(ID,'session').id,sessionId);assert.equal(combat.getFlag(ID,'session').members.length,1);assert.equal(combat.getFlag(ID,'session').members[0].initiative,undefined);
+});
+test('first individual split rolls once, later splits restore, a new combat rolls fresh',async()=>{
+ const {docs,combat,scene}=fixture();game.scenes=new Map([['s',scene]]);game.messages={contents:[]};game.users=[{id:'gm',isGM:true}];globalThis.ChatMessage={create:async()=>{}};
+ const merged=await mergeTokens(docs);await combat.unsetFlag(ID,'session');await merged.token.unsetFlag(ID,'battle');
+ await syncPopulation(merged.token);let rolls=0;
+ combat.rollInitiative=async ids=>{for(const id of ids)combat.combatants.get(id).initiative=++rolls;};
+ let split=await splitToken(merged.token,{initiativeMode:'reroll'});assert.equal(rolls,3);
+ await mergeTokens(split.tokens);split=await splitToken(merged.token,{initiativeMode:'reroll'});assert.equal(rolls,3);
+ await mergeTokens(split.tokens);game.settings.values.set('combatSummary',false);await finishCombat(combat);
+ split=await splitToken(merged.token,{initiativeMode:'reroll'});assert.equal(rolls,6);
+});
+test('deleted combat cleans only its own memory and summary can be disabled',async()=>{
+ const {docs,scene,combat}=fixture();game.scenes=new Map([['s',scene]]);game.messages={contents:[]};game.users=[{id:'gm',isGM:true}];
+ let reports=0;globalThis.ChatMessage={create:async()=>reports++};game.settings.values.set('combatSummary',false);
+ const merged=await mergeTokens(docs);const other={id:'other',getFlag:()=>({combat:'Combat.other',session:'other'}),unsetFlag:async()=>{throw Error('must not clear another combat');}};scene.tokens.set(other.id,other);
+ await finishCombat(combat,{deleted:true});assert.equal(reports,0);assert.equal(merged.token.getFlag(ID,'battle'),undefined);assert.equal(merged.token.actor.system.attributes.hp.value,7);
 });

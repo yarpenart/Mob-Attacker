@@ -27,7 +27,7 @@ function mergeStored(old,next) {
    ? mergeStored(result[k],v) : structuredClone(v);
  return result;
 }
-const owner={uuid:'Combat.a' ,documentName:'Combat',round:1,started:true,getFlag:()=>flags.get('ledger'),setFlag:async(k,f,v)=>{flags.set(f,mergeStored(flags.get(f),documentRoundTrip(v)));}};
+const owner={uuid:'Combat.a' ,documentName:'Combat',round:1,started:true,getFlag:(_id,key)=>flags.get(key),setFlag:async(k,f,v)=>{flags.set(f,mergeStored(flags.get(f),documentRoundTrip(v)));}};
 const doc={uuid:'Scene.x.Token.orcs',getFlag:()=>null,setFlag:async()=>{}};
 const actor={id:'orcs',name:'Orcs',type:'npc',token:doc,items:new Map(),getFlag:()=>null,getRollData:()=>({})};
 const target={uuid:'Scene.x.Token.fighter',name:'Fighter',parent:{id:'x'},actor:{system:{attributes:{ac:{value:19}}}}};
@@ -413,4 +413,12 @@ test('related world settings are hidden behind three restricted menu tiles and d
  const related=entries.filter(e=>e.key.startsWith('size_')||['mergeInitiative','splitInitiative','splitHP','hordeHPMode','hordeHPFormula'].includes(e.key));
  assert.ok(related.length>=14);assert.ok(related.every(e=>e.config===false));assert.equal(entries.find(e=>e.key==='hordeHPMode').default,'max');
  } finally {foundry.applications=oldApps;game.settings.register=oldRegister;game.settings.registerMenu=oldMenu;}
+});
+
+
+test('a new encounter session cannot reuse previous attack progress on the same Combat document',async()=>{
+ flags.set('session',{id:'fight1'});await resolve({doc,actor,activity,options:{...opts,count:1}});
+ assert.equal(flags.get('ledger').entries[0][1].total,1);
+ flags.set('session',{id:'fight2'});await resolve({doc,actor,activity,options:{...opts,count:1}});
+ assert.equal(flags.get('ledger').entries[0][1].total,1);assert.equal(flags.get('ledger').scope,'Combat.a:fight2');
 });

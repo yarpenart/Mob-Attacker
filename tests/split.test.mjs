@@ -16,7 +16,7 @@ function fixture({count=8,hp=50,failCombat=false}={}){
   flags:{[ID]:{horde:{enabled:true,count,attackLimit:2,group:'Goblins'},population:{baseHP:7,baseSize:'sm',width:1,height:1,initial:8,current:count}}}});
  scene.tokens.set(token.id,token);
  const original=flagMethods({id:'c0',uuid:'Combat.combat.Combatant.c0',actorId:'goblin',tokenId:token.id,sceneId:scene.id,initiative:17,hidden:false});
- const combat=flagMethods({id:'combat',started:true,turn:0,round:2,combatants:new Map([['c0',original]]),turns:[original],combatant:original,
+ const combat=flagMethods({id:'combat',uuid:'Combat.combat',started:true,turn:0,round:2,combatants:new Map([['c0',original]]),turns:[original],combatant:original,
   flags:{[ID]:{ledger:{schema:3,scope:'Combat.combat',entries:[['progress',{total:1}]],turns:[{combatant:original.uuid,round:2,slot:1,hits:0,group:'Goblins',target:'target'}]}}},
   async updateEmbeddedDocuments(type,updates){assert.equal(type,'Combatant');for(const data of updates)apply(this.combatants.get(data._id),data);},
   async createEmbeddedDocuments(type,data){if(failCombat)throw Error('combat failed');return data.map((d,i)=>{assert.equal(d.initiative,17);const c={...d,id:'new'+i,uuid:'Combat.combat.Combatant.new'+i};this.combatants.set(c.id,c);this.turns.push(c);return c;});},

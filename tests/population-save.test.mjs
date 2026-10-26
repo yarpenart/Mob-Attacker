@@ -1,8 +1,9 @@
+import {memoryScope} from '../scripts/combat-memory.mjs';
 import {test,beforeEach} from 'node:test';
 import {mockSettings} from './test-settings.mjs';
 beforeEach(()=>{globalThis.game={settings:mockSettings({hordeNaming:'plain'})};});
 import assert from 'node:assert/strict';
-import {livingCount,hordeSize,syncPopulation,syncHordeName,ID} from '../scripts/population.mjs';
+import {updateMembers,livingCount,hordeSize,syncPopulation,syncHordeName,ID} from '../scripts/population.mjs';
 import {saveCount,saveDamage,installSaves} from '../scripts/saves.mjs';
 globalThis.foundry={utils:{deepClone:structuredClone}};
 function update(target,data) {
@@ -96,7 +97,7 @@ test('native spell damage rolled after saves attaches to the pending GM result',
  await api.apply(message);assert.equal(doc.actor.system.attributes.hp.value,32);
 });
 test('damage rolled before saves is reused; a changed HP snapshot blocks stale applications',async()=>{
- const {doc,origin,api}=saveFixture();await origin.setFlag(ID,'saveDamage',{parts:[{value:4,type:'fire'}]});
+ const {doc,origin,api}=saveFixture();await origin.setFlag(ID,'saveDamage',{parts:[{value:4,type:'fire'}],scope:memoryScope()});
  const {message}=await api.resolveSave({doc,actor:doc.actor,options:{dc:14,bonus:'4',ability:'dex',source:origin.id,onSave:'half'}});
  assert.equal(message.getFlag(ID,'save').damage.total,24);
  doc.actor.system.attributes.hp.value=55;await assert.rejects(api.apply(message));assert.equal(doc.actor.system.attributes.hp.value,55);
@@ -158,4 +159,10 @@ test('explicitly rerolling an existing Horde preserves damage and uses a custom 
  game.settings.values.set('hordeHPFormula','3d6+2');globalThis.Roll=class{constructor(formula){assert.equal(formula,'3d6+2');}async evaluate(){this.total=10;return this;}};
  try {await syncPopulation(doc,{rerollHP:true});assert.equal(doc.actor.system.attributes.hp.max,20);assert.equal(doc.actor.system.attributes.hp.value,17);}
  finally {globalThis.Roll=originalRoll;}
+});
+
+test('damage drains the lowest current HP first regardless of member order or maximum HP',()=>{
+ assert.deepEqual(updateMembers([8,2,5],9,[10,4,9]),[8,0,1]);
+ assert.deepEqual(updateMembers([8,2,5],12,[10,4,9]),[8,0,4]);
+ assert.deepEqual(updateMembers([8,2,5],0,[10,4,9]),[0,0,0]);
 });
