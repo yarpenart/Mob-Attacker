@@ -1,3 +1,4 @@
+import {withTokenOperation} from './token-operations.mjs';
 import {restoreInitiatives,rememberInitiatives} from './combat-memory.mjs';
 import {splitNames} from './naming.mjs';
 import {integer} from './logic.mjs';
@@ -40,7 +41,11 @@ export function splitPositions(doc,count,width,scene) {
   }
   throw Error('Not enough free scene space to split this Horde');
 }
-export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},random=Math.random,initiativeMode}={}) {
+export async function splitToken(doc,options={}){
+ options.requireAuthority?.();
+ return withTokenOperation([doc],()=>splitTokenWork(doc,options));
+}
+async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=Math.random,initiativeMode}={}) {
   requireAuthority();
   initiativeMode??=game.settings.get(ID,'splitInitiative')??'shared';
   if(!['shared','reroll'].includes(initiativeMode))throw Error('Invalid split Horde initiative mode');

@@ -1,3 +1,4 @@
+import {withTokenOperation,tokenOperationActive} from './token-operations.mjs';
 import {rememberInitiatives} from './combat-memory.mjs';
 import {assignMergedName} from './naming.mjs';
 import {ID,hordeSize,creatureName} from './population.mjs';
@@ -13,7 +14,7 @@ export function mergedInitiative(values,mode='median') {
   const middle=Math.floor(rolled.length/2);
   return rolled[middle];
 }
-export function mergePlan(tokens,preferred) {
+export function mergePlan(tokens,preferred,{owned=false}={}) {
   const docs=[...new Map(tokens.map(t=>t.document ?? t).map(d=>[d.uuid,d])).values()];
   if(docs.length<2||docs.length>200)throw Error('Select 2–200 individual NPC tokens to merge');
   const active=game.combat?.combatant?.tokenId;
@@ -21,7 +22,7 @@ export function mergePlan(tokens,preferred) {
   const members=docs.map(doc=>{
     const actor=doc.actor,pop=doc.getFlag(ID,'population'),config={...(actor?.getFlag(ID,'horde')??{}),...(doc.getFlag(ID,'horde')??{})};
     if(actor?.type!=='npc'||doc.parent?.id!==anchor.parent?.id)throw Error('Select NPC tokens on the same scene');
-    if(doc.getFlag(ID,'splitLock')||doc.getFlag(ID,'mergeLock'))throw Error('A selected token is already being split or merged');
+    if(!owned&&tokenOperationActive(doc))throw Error('A selected token is already being split or merged');
     if(config.enabled&&Number(config.count??1)!==1)throw Error('Merge only individual living creatures; split larger Hordes first');
     const livingIndex=pop?.members?.findIndex(hp=>hp>0)??0;
     const single=Number(pop?.initial??1)===1;
@@ -38,8 +39,13 @@ export function mergePlan(tokens,preferred) {
   if(members.some(m=>m.attackLimit!==source.attackLimit))throw Error('Merge creatures with the same attack limit');
   return {docs,anchor,members,source,count:members.length,hp:members.reduce((n,m)=>n+m.hp,0),max:members.reduce((sum,m)=>sum+m.max,0)};
 }
-export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},initiativeMode}={}) {
-  requireAuthority();const plan=mergePlan(tokens,preferred),{docs,anchor,members,source,count,hp,max}=plan;
+export async function mergeTokens(tokens,options={}){
+ options.requireAuthority?.();
+ const docs=[...new Map(tokens.map(t=>t.document??t).map(doc=>[doc.uuid,doc])).values()];
+ return withTokenOperation(docs,()=>mergeTokensWork(docs,options));
+}
+async function mergeTokensWork(tokens,{preferred,requireAuthority=()=>{},initiativeMode}={}) {
+  requireAuthority();const plan=mergePlan(tokens,preferred,{owned:true}),{docs,anchor,members,source,count,hp,max}=plan;
   const scene=anchor.parent,removed=docs.filter(d=>d!==anchor),shape=hordeSize(count,source.size);
   const tokenBackups=docs.map(doc=>{const data=clone(doc.toObject());if(data.flags?.[ID])delete data.flags[ID].mergeOrigin;return data;});
   const records=combats().map(combat=>({combat,rows:combatants(combat,docs),ledger:clone(combat.getFlag(ID,'ledger')),active:combat.combatant?.id})).filter(r=>r.rows.length);
