@@ -42,7 +42,7 @@ test('split retains original identity, gives every member initiative and carries
  assert.equal(scene.tokens.size,8);assert.equal(result.tokens[0],token);assert.equal(result.hp.reduce((a,b)=>a+b,0),50);
  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.actor.system.attributes.hp.value,7);
  assert.equal(token.getFlag(ID,'population').initial,1);assert.equal(token.getFlag(ID,'splitOrigin').initial,8);
- assert.equal(token.getFlag(ID,'splitLock'),undefined);assert.equal(combat.combatants.size,8);assert.equal(token.name,'Goblin 1.1');assert.ok([...combat.combatants.values()].every(c=>!c.name.includes('(Horde)')));
+ assert.equal(token.getFlag(ID,'splitLock'),undefined);assert.equal(combat.combatants.size,8);assert.equal(token.name,'Goblin 1');assert.ok([...combat.combatants.values()].every(c=>!c.name.includes('(Horde)')));
  assert.ok([...combat.combatants.values()].every(c=>c.initiative===17));
  const ledger=combat.getFlag(ID,'ledger');assert.equal(ledger.turns.length,8);assert.deepEqual(ledger.entries,[['progress',{total:1}]]);
  for(const copy of result.tokens.slice(1)){assert.equal(copy.flags[ID].horde.count,1);assert.equal(copy.delta.system.attributes.hp.max,7);assert.equal(copy.delta.system.attributes.hp.temp,0);assert.equal(copy.delta.items[0]._id,'weapon');}
@@ -76,7 +76,7 @@ test('reroll mode rolls native initiative for every member, including the origin
  const {token,combat}=fixture();let calls=0;
  game.settings.get=(id,key)=>key==='splitInitiative'?'reroll':undefined;
  combat.rollInitiative=async(ids,options)=>{calls++;assert.equal(ids.length,8);assert.ok(ids.includes('c0'));assert.equal(options.updateTurn,true);
-  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.name,'Goblin 1.1');
+  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.name,'Goblin 1');
   ids.forEach((id,i)=>{combat.combatants.get(id).initiative=i+3;});};
  await splitToken(token);assert.equal(calls,1);assert.equal(combat.combatants.get('c0').initiative,3);
  assert.equal(new Set([...combat.combatants.values()].map(c=>c.initiative)).size,8);assert.equal(combat.getFlag(ID,'ledger').turns.length,8);
@@ -90,7 +90,7 @@ test('a failed initiative reroll restores the original initiative, name, HP and 
  combat.rollInitiative=async(ids)=>{combat.combatants.get(ids[0]).initiative=2;throw Error('roll failed');};
  await assert.rejects(splitToken(token,{initiativeMode:'reroll'}),/roll failed/);
  assert.equal(scene.tokens.size,1);assert.equal(combat.combatants.size,1);assert.equal(combat.combatants.get('c0').initiative,17);
- assert.equal(combat.combatants.get('c0').name,'Goblin (Horde)');assert.equal(token.actor.system.attributes.hp.value,50);
+ assert.equal(combat.combatants.get('c0').name,'Goblin 1 (Horde)');assert.equal(token.actor.system.attributes.hp.value,50);
  assert.equal(combat.getFlag(ID,'ledger').turns.length,1);assert.equal(token.getFlag(ID,'splitLock'),undefined);
 });
 test('rerolling keeps the same active combatant after initiative sorting changes',async()=>{

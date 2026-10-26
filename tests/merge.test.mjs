@@ -2,7 +2,7 @@ import {mockSettings} from './test-settings.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mergeTokens,mergePlan,mergedInitiative} from '../scripts/merge.mjs';
-import {syncPopulation,ID} from '../scripts/population.mjs';
+import {syncPopulation,populationActorUpdated,ID} from '../scripts/population.mjs';
 import {splitToken} from '../scripts/split.mjs';
 globalThis.foundry={utils:{deepClone:structuredClone}};
 function apply(object,data){for(const [path,value] of Object.entries(data)){const keys=path.split('.');let node=object;for(const k of keys.slice(0,-1))node=node[k]??={};const k=keys.at(-1);if(k.startsWith('-='))delete node[k.slice(2)];else node[k]=structuredClone(value);}}
@@ -34,8 +34,8 @@ function fixture({linked=false,failUpdate=false,failDelete=false}={}){
 test('merge sums HP and maximum HP, keeps wounded members and uses median initiative',async()=>{
  const {docs,scene,combat}=fixture();const result=await mergeTokens(docs,{preferred:docs[2]});
  assert.equal(result.token,docs[0]);assert.equal(scene.tokens.size,1);assert.equal(result.count,3);assert.equal(result.hp,7);assert.equal(result.max,21);
- assert.equal(result.token.name,'Goblin (Horde)');assert.equal(combat.combatants.size,1);assert.equal(combat.combatant.initiative,12);
- assert.equal(combat.combatant.name,'Goblin (Horde)');assert.equal(result.token.actor.system.attributes.hp.temp,3);
+ assert.equal(result.token.name,'Goblin 1 (Horde)');assert.equal(combat.combatants.size,1);assert.equal(combat.combatant.initiative,12);
+ assert.equal(combat.combatant.name,'Goblin 1 (Horde)');assert.equal(result.token.actor.system.attributes.hp.temp,3);
  await syncPopulation(result.token);assert.equal(result.token.getFlag(ID,'horde').count,3);
  const ledger=combat.getFlag(ID,'ledger');assert.equal(ledger.entries[0][1].total,1);assert.equal(ledger.turns.length,1);assert.equal(ledger.turns[0].hits,1);
  assert.equal(result.token.getFlag(ID,'mergeOrigin').tokens.length,3);assert.equal(result.token.getFlag(ID,'mergeLock'),undefined);
@@ -105,7 +105,7 @@ test('split members with different synthetic actor names merge immediately and k
  split.tokens.forEach((token,i)=>{token.actor.name=`Goblin ${i+1}`;});
  const result=await mergeTokens(split.tokens,{preferred:split.tokens[1]});
  assert.equal(scene.tokens.size,1);assert.equal(result.count,3);assert.equal(result.hp,7);assert.equal(result.max,21);
- assert.equal(result.token.name,'Goblin (Horde)');assert.equal(result.token.getFlag(ID,'population').baseName,'Goblin');
+ assert.equal(result.token.name,'Goblin 1 (Horde)');assert.equal(result.token.getFlag(ID,'population').baseName,'Goblin');
 });
 test('equivalent string and numeric attack limits do not block remerging individual members',async()=>{
  const {docs}=fixture();docs[0].flags[ID]={horde:{enabled:true,count:1,attackLimit:1}};docs[1].flags[ID]={horde:{enabled:true,count:1,attackLimit:'1'}};
@@ -122,4 +122,33 @@ test('the last survivor of a rolled Horde merges using its own cap rather than a
  assert.equal(merged.token.getFlag(ID,'horde').count,1);
  const [extra]=await scene.createEmbeddedDocuments('Token',[{actorId:'goblin',delta:{system:{attributes:{hp:{max:7,value:7,temp:0}},traits:{size:'sm'}}}}]);
  const result=await mergeTokens([merged.token,extra]);assert.equal(result.max,12);assert.equal(result.hp,11);assert.equal(result.count,2);
+});
+
+test('native rolled HP Horde can split and immediately merge repeatedly without rerolls or cap loss',async()=>{
+ const {docs}=fixture();game.combats=new Map();game.combat=null;
+ const original=docs[0];original.actor.system.attributes.hp={max:7,value:7,temp:0,formula:'2d6'};original.actor.getRollData=()=>({});
+ let rolls=0;globalThis.Roll=class{async evaluate(){this.total=[3,11,5][rolls++];return this;}};
+ game.settings.values.set('hordeHPMode','rolled');await original.setFlag(ID,'horde',{enabled:true,count:3,attackLimit:1});
+ await syncPopulation(original);assert.equal(original.actor.system.attributes.hp.max,19);assert.equal(rolls,3);
+ // Remove the unrelated fixture tokens from the scene.
+ original.parent.tokens.delete(docs[1].id);original.parent.tokens.delete(docs[2].id);
+ globalThis.Hooks={once:()=>{},on:()=>{}};globalThis.ui={combat:{render(){}},notifications:{info(){}}};
+ game.i18n={localize:key=>key};game.user={isGM:true,id:'gm'};game.users=[{isGM:true,id:'gm',active:true}];
+ const {splitMergeHorde}=await import('../scripts/main.mjs');
+ for(let i=0;i<3;i++){
+  const split=await splitToken(original);assert.deepEqual(split.tokens.map(t=>t.actor.system.attributes.hp.max),[3,11,5]);
+  for(const token of split.tokens)token.flags[ID].horde.count='1';
+  globalThis.canvas={tokens:{controlled:split.tokens.map(document=>({document}))}};
+  const merged=await splitMergeHorde(original);assert.equal(merged.max,19);assert.equal(merged.hp,19);assert.equal(rolls,3);
+ }
+});
+test('population hooks cannot recalculate a partially split token',async()=>{
+ const {docs}=fixture(),token=docs[0];await token.setFlag(ID,'population',{baseHP:7,current:3,initial:3});await token.setFlag(ID,'splitLock',true);token.actor.token=token;
+ await populationActorUpdated(token.actor,{});assert.equal(token.getFlag(ID,'population').current,3);assert.equal(token.actor.system.attributes.hp.max,7);
+});
+
+test('individual actor maximum HP wins over stale population base HP',()=>{
+ const {docs}=fixture();docs[0].actor.system.attributes.hp={max:11,value:11,temp:0};
+ docs[0].flags[ID]={horde:{enabled:true,count:'1'},population:{initial:1,current:1,baseHP:3,baseSize:'sm',members:[11],maxima:[3]}};
+ assert.equal(mergePlan(docs).members[0].max,11);
 });

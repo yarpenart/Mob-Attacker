@@ -1,6 +1,6 @@
 import {test,beforeEach} from 'node:test';
 import {mockSettings} from './test-settings.mjs';
-beforeEach(()=>{globalThis.game={settings:mockSettings()};});
+beforeEach(()=>{globalThis.game={settings:mockSettings({hordeNaming:'plain'})};});
 import assert from 'node:assert/strict';
 import {livingCount,hordeSize,syncPopulation,syncHordeName,ID} from '../scripts/population.mjs';
 import {saveCount,saveDamage,installSaves} from '../scripts/saves.mjs';
@@ -68,7 +68,7 @@ function saveFixture() {
  const doc=token(8),messages=[];
  const message=(id='m'+messages.length)=>({id,flags:{},content:'',getFlag(id,key){return this.flags[id]?.[key];},async setFlag(id,key,data){this.flags[id]??={};this.flags[id][key]=structuredClone(data);},async update(data){update(this,data);}});
  const origin=message('spell');origin.getAssociatedActivity=()=>({uuid:'Actor.wizard.Item.fireball.Activity.save'});messages.push(origin);
- globalThis.game={settings:mockSettings(),user:{isGM:true},combat:null,messages:{contents:messages,get:id=>messages.find(m=>m.id===id)}};
+ globalThis.game={settings:mockSettings({hordeNaming:'plain'}),user:{isGM:true},combat:null,messages:{contents:messages,get:id=>messages.find(m=>m.id===id)}};
  globalThis.canvas={scene:origin};globalThis.fromUuid=async()=>doc;
  globalThis.Roll=class {constructor(formula){this.formula=formula;}async evaluate(){this.total=Number(this.formula);return this;}};
  doc.actor.calculateDamage=(parts,{multiplier=1}={})=>({amount:Math.trunc(parts.reduce((sum,p)=>sum+p.value*multiplier,0))});
@@ -135,7 +135,7 @@ test('repeated saves for a spell are blocked; forced mode replaces only an unapp
  const doc=token(8);doc.id='goblin';doc.parent={id:'x'};doc.actor.name='Goblin';doc.name='Custom token';
  const rows=new Map([['a',{id:'a',tokenId:doc.id,sceneId:'x',name:'Custom initiative'}],['b',{id:'b',tokenId:doc.id,sceneId:'other',name:'Different scene'}]]);
  const combat={combatants:rows,async updateEmbeddedDocuments(type,updates){assert.equal(type,'Combatant');for(const data of updates)Object.assign(rows.get(data._id),data);}};
- const original=globalThis.game;globalThis.game={settings:mockSettings(),combats:new Map([['combat',combat]])};
+ const original=globalThis.game;globalThis.game={settings:mockSettings({hordeNaming:'plain'}),combats:new Map([['combat',combat]])};
  try {await syncPopulation(doc);assert.equal(doc.name,'Goblin (Horde)');assert.equal(rows.get('a').name,'Goblin (Horde)');assert.equal(rows.get('b').name,'Different scene');
  rows.get('a').name='Late initiative entry';await syncHordeName(doc,8);assert.equal(rows.get('a').name,'Goblin (Horde)');
  doc.actor.system.attributes.hp.value=7;await syncPopulation(doc);assert.equal(doc.name,'Custom token');assert.equal(rows.get('a').name,'Custom token');
