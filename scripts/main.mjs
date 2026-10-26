@@ -108,6 +108,29 @@ export async function toggleTokens(tokens = canvas.tokens?.controlled ?? []) {
   ui.notifications.info(t(enabled ? 'markedMany' : 'unmarkedMany',{count:docs.length}));
   return {enabled,count:docs.length,group};
 }
+const trackerConfirmations=new Set();
+export async function confirmTrackerToggle(tokens=canvas.tokens?.controlled??[]){
+ requireAuthority();
+ const docs=[...new Map(tokens.map(token=>token.document??token).filter(doc=>doc.actor?.type==='npc').map(doc=>[doc.uuid??doc.id,doc])).values()];
+ if(!docs.length)throw Error(t('selectMany'));
+ const keys=docs.map(doc=>doc.uuid??doc.id);
+ if(keys.some(key=>trackerConfirmations.has(key)))return null;
+ keys.forEach(key=>trackerConfirmations.add(key));
+ try{
+  const states=docs.map(doc=>!!settings(doc).enabled),enabled=!states.every(Boolean);
+  const action=enabled?'confirmMarkHorde':'confirmUnmarkHorde';
+  const result=await foundry.applications.api.DialogV2.wait({
+   window:{title:t(action+'Title')},classes:['ya-horde-dialog'],position:{width:460},modal:true,rejectClose:false,
+   content:`<p>${esc(t(action,{name:docs.length===1?(docs[0].name??docs[0].actor.name):t('selectedUnits',{count:docs.length})}))}</p>`,
+   buttons:[{action:'cancel',label:t('cancel'),default:true},{action:'confirm',label:t('confirmHordeChange'),default:false}]
+  });
+  if(result!=='confirm')return null;
+  requireAuthority();
+  // An older dialog must never undo another GM's more recent membership change.
+  if(docs.some((doc,i)=>!!settings(doc).enabled!==states[i])){ui.notifications.warn(t('hordeStateChanged'));return null;}
+  return await toggleTokens(docs);
+ }finally{keys.forEach(key=>trackerConfirmations.delete(key));}
+}
 export function sceneControls(controls) {
   if (!game.user.isGM || !controls.tokens?.tools) return;
   controls.tokens.tools.yaHordeToggle={name:'yaHordeToggle',title:t('toggleSelected'),icon:'fa-solid fa-people-group',
@@ -460,11 +483,11 @@ export function renderTracker(app,html) {
     if (c?.actor?.type !== 'npc') continue;
     const doc=c.token ?? c.actor,s=settings(doc,c.actor);
     injectButton(row.querySelector('.combatant-controls') ?? row,`Horde${s.enabled ? ` ×${s.count}` : ''}`,s.enabled,
-      () => c.token ? toggleTokens([c.token]) : configure(doc,c.actor),{context:() => hordeMenu(doc,c.actor)});
+      () => c.token ? confirmTrackerToggle([c.token]) : configure(doc,c.actor),{context:() => hordeMenu(doc,c.actor)});
   }
   injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('title'),false,help);
   injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('toggleSelected'),false,
-    () => toggleTokens(),{key:'toggleSelected'});
+    () => confirmTrackerToggle(),{key:'toggleSelected'});
 }
 export async function splitHorde(doc) {
   requireAuthority();
