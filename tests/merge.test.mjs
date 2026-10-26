@@ -98,3 +98,15 @@ test('the retained combatant cannot gain a free attack slot by merging',async()=
  await mergeTokens(docs);assert.equal(combat.combatant.id,'outside');assert.equal(combat.combatants.size,2);
  assert.equal([...combat.combatants.values()].find(c=>c.id!=='outside').initiative,12);
  });
+test('split members with different synthetic actor names merge immediately and keep their base creature name',async()=>{
+ const {docs,scene}=fixture();const merged=await mergeTokens(docs);const split=await splitToken(merged.token);
+ // Foundry and sheet/token-name integrations may give each synthetic actor its token's name.
+ split.tokens.forEach((token,i)=>{token.actor.name=`Goblin ${i+1}`;});
+ const result=await mergeTokens(split.tokens,{preferred:split.tokens[1]});
+ assert.equal(scene.tokens.size,1);assert.equal(result.count,3);assert.equal(result.hp,7);assert.equal(result.max,21);
+ assert.equal(result.token.name,'Goblin (Horde)');assert.equal(result.token.getFlag(ID,'population').baseName,'Goblin');
+});
+test('equivalent string and numeric attack limits do not block remerging individual members',async()=>{
+ const {docs}=fixture();docs[0].flags[ID]={horde:{enabled:true,count:1,attackLimit:1}};docs[1].flags[ID]={horde:{enabled:true,count:1,attackLimit:'1'}};
+ const result=await mergeTokens(docs);assert.equal(result.count,3);
+});
