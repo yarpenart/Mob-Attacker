@@ -406,3 +406,11 @@ test('Split/Merge is available for selected single NPCs in the sheet menu and To
  const controls={tokens:{tools:{}}};sceneControls(controls);assert.ok(controls.tokens.tools.yaHordeSplitMerge);assert.equal(controls.tokens.tools.yaHordeSplitMerge.button,true);
  } finally {foundry.applications=previous;}
 });
+test('related world settings are hidden behind three restricted menu tiles and default HP stays maximal',()=>{
+ const oldApps=foundry.applications,oldRegister=game.settings.register,oldMenu=game.settings.registerMenu,entries=[],menus=[];
+ foundry.applications={api:{ApplicationV2:class{}}};game.settings.register=(id,key,data)=>entries.push({key,...data});game.settings.registerMenu=(id,key,data)=>menus.push({key,...data});
+ try {hooks.init();assert.equal(menus.length,3);assert.ok(menus.every(m=>m.restricted));
+ const related=entries.filter(e=>e.key.startsWith('size_')||['mergeInitiative','splitInitiative','splitHP','hordeHPMode','hordeHPFormula'].includes(e.key));
+ assert.ok(related.length>=14);assert.ok(related.every(e=>e.config===false));assert.equal(entries.find(e=>e.key==='hordeHPMode').default,'max');
+ } finally {foundry.applications=oldApps;game.settings.register=oldRegister;game.settings.registerMenu=oldMenu;}
+});

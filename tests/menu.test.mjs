@@ -35,3 +35,11 @@ test('right-clicking initiative Horde opens the same full action menu',async()=>
  await click(button,'contextmenu');assert.deepEqual(opened.at(-1).buttons.map(b=>b.action),['configure','force','save','split']);
  assert.equal(opened.at(-1).buttons.find(b=>b.action==='split').disabled,false);
 });
+test('reusing the same token HUD binds its button to the new token',async()=>{
+ const first=npc(),second=npc();second.actor.name='Second Goblin';second.doc.id='second';second.doc.uuid='Scene.s.Token.second';
+ const root=new Element(),column=new Element('.col.right');root.append(column);
+ renderHUD({document:first.doc},root);const old=column.querySelector('[data-ya-horde-key="hudMenu"]');
+ renderHUD({document:second.doc},root);const current=column.querySelector('[data-ya-horde-key="hudMenu"]');assert.notEqual(current,old);
+ await click(current,'click');assert.equal(opened.at(-1).window.title,'Horde — Second Goblin');
+ assert.ok(current.listeners.pointerdown);assert.ok(current.listeners.mousedown);
+});

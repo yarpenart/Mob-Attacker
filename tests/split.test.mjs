@@ -1,7 +1,8 @@
+import {mockSettings} from './test-settings.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {distributeHP,splitToken,splitPositions} from '../scripts/split.mjs';
-import {hordeSize,ID} from '../scripts/population.mjs';
+import {hordeSize,ID,syncPopulation} from '../scripts/population.mjs';
 globalThis.foundry={utils:{deepClone:structuredClone}};
 function apply(doc,data){for(const [key,value] of Object.entries(data)){const path=key.split('.');let node=doc;for(const k of path.slice(0,-1))node=node[k]??={};const last=path.at(-1);if(last.startsWith('-='))delete node[last.slice(2)];else node[last]=structuredClone(value);}}
 function flagMethods(doc){return Object.assign(doc,{getFlag(id,key){return this.flags?.[id]?.[key];},async setFlag(id,key,v){this.flags??={};this.flags[id]??={};this.flags[id][key]=structuredClone(v);},async unsetFlag(id,key){delete this.flags?.[id]?.[key];},async update(data){apply(this,data);},toObject(){const {actor,parent,combatants,turns,...data}=this;return Object.fromEntries(Object.entries(data).filter(([k,v])=>typeof v!=='function'));}});}
@@ -9,7 +10,7 @@ function fixture({count=8,hp=50,failCombat=false}={}){
  const actor={name:'Goblin',system:{attributes:{hp:{max:56,value:hp,temp:3}},traits:{size:'huge'}},getFlag:()=>null,
   async update(data){apply(this,data);},toObject(){return {name:'Goblin',system:structuredClone(this.system),items:[{_id:'weapon',name:'Scimitar'}],effects:[],flags:{}};}};
  const scene={id:'scene',width:4000,height:4000,grid:{size:100},tokens:new Map(),
-  async createEmbeddedDocuments(type,data){assert.equal(type,'Token');return data.map((d,i)=>{const token=flagMethods({...structuredClone(d),id:'copy'+i,uuid:'Scene.scene.Token.copy'+i,parent:this});token.actor={system:structuredClone(d.delta.system)};this.tokens.set(token.id,token);return token;});},
+  async createEmbeddedDocuments(type,data){assert.equal(type,'Token');return data.map((d,i)=>{const serial=this.nextToken??0;this.nextToken=serial+1;const token=flagMethods({...structuredClone(d),id:'copy'+serial,uuid:'Scene.scene.Token.copy'+serial,parent:this});token.actor={system:structuredClone(d.delta.system)};this.tokens.set(token.id,token);return token;});},
   async deleteEmbeddedDocuments(type,ids){for(const id of ids)this.tokens.delete(id);}};
  const token=flagMethods({id:'original',uuid:'Scene.scene.Token.original',name:'Goblin Horde',parent:scene,actor,actorId:'goblin',actorLink:false,x:1000,y:1000,width:3,height:3,
   flags:{[ID]:{horde:{enabled:true,count,attackLimit:2,group:'Goblins'},population:{baseHP:7,baseSize:'sm',width:1,height:1,initial:8,current:count}}}});
@@ -20,7 +21,7 @@ function fixture({count=8,hp=50,failCombat=false}={}){
   async updateEmbeddedDocuments(type,updates){assert.equal(type,'Combatant');for(const data of updates)apply(this.combatants.get(data._id),data);},
   async createEmbeddedDocuments(type,data){if(failCombat)throw Error('combat failed');return data.map((d,i)=>{assert.equal(d.initiative,17);const c={...d,id:'new'+i,uuid:'Combat.combat.Combatant.new'+i};this.combatants.set(c.id,c);this.turns.push(c);return c;});},
   async deleteEmbeddedDocuments(type,ids){for(const id of ids)this.combatants.delete(id);this.turns=this.turns.filter(c=>!ids.includes(c.id));}});
- globalThis.game={settings:{get:()=>undefined},combats:new Map([['combat',combat]]),combat};
+ globalThis.game={settings:mockSettings(),combats:new Map([['combat',combat]]),combat};
  return {token,scene,combat,actor};
 }
 test('equal and random splits preserve HP and stay within one-creature limits',()=>{
@@ -41,7 +42,7 @@ test('split retains original identity, gives every member initiative and carries
  assert.equal(scene.tokens.size,8);assert.equal(result.tokens[0],token);assert.equal(result.hp.reduce((a,b)=>a+b,0),50);
  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.actor.system.attributes.hp.value,7);
  assert.equal(token.getFlag(ID,'population').initial,1);assert.equal(token.getFlag(ID,'splitOrigin').initial,8);
- assert.equal(token.getFlag(ID,'splitLock'),undefined);assert.equal(combat.combatants.size,8);assert.equal(token.name,'Goblin 1');assert.ok([...combat.combatants.values()].every(c=>!c.name.includes('(Horde)')));
+ assert.equal(token.getFlag(ID,'splitLock'),undefined);assert.equal(combat.combatants.size,8);assert.equal(token.name,'Goblin 1.1');assert.ok([...combat.combatants.values()].every(c=>!c.name.includes('(Horde)')));
  assert.ok([...combat.combatants.values()].every(c=>c.initiative===17));
  const ledger=combat.getFlag(ID,'ledger');assert.equal(ledger.turns.length,8);assert.deepEqual(ledger.entries,[['progress',{total:1}]]);
  for(const copy of result.tokens.slice(1)){assert.equal(copy.flags[ID].horde.count,1);assert.equal(copy.delta.system.attributes.hp.max,7);assert.equal(copy.delta.system.attributes.hp.temp,0);assert.equal(copy.delta.items[0]._id,'weapon');}
@@ -75,7 +76,7 @@ test('reroll mode rolls native initiative for every member, including the origin
  const {token,combat}=fixture();let calls=0;
  game.settings.get=(id,key)=>key==='splitInitiative'?'reroll':undefined;
  combat.rollInitiative=async(ids,options)=>{calls++;assert.equal(ids.length,8);assert.ok(ids.includes('c0'));assert.equal(options.updateTurn,true);
-  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.name,'Goblin 1');
+  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.name,'Goblin 1.1');
   ids.forEach((id,i)=>{combat.combatants.get(id).initiative=i+3;});};
  await splitToken(token);assert.equal(calls,1);assert.equal(combat.combatants.get('c0').initiative,3);
  assert.equal(new Set([...combat.combatants.values()].map(c=>c.initiative)).size,8);assert.equal(combat.getFlag(ID,'ledger').turns.length,8);
@@ -101,4 +102,27 @@ test('reroll mode outside combat creates no initiative entries',async()=>{
  const {token,combat}=fixture();game.combats=new Map();game.combat=null;
  combat.rollInitiative=async()=>{throw Error('No combat rolls should be requested');};
  const result=await splitToken(token,{initiativeMode:'reroll'});assert.equal(result.tokens.length,8);assert.equal(combat.combatants.size,1);
+});
+
+ test('two eight-member Hordes split into distinct group/member names or continuous 1–16',async()=>{
+ for(const mode of ['horde','continuous']){
+ const {token,scene}=fixture({hp:56});game.combats=new Map();game.combat=null;game.settings.values.set('splitNaming',mode);
+ const other=flagMethods({...token,id:'secondHorde',uuid:'Scene.scene.Token.secondHorde',x:2500,actor:{...token.actor,system:structuredClone(token.actor.system)},flags:structuredClone(token.flags)});scene.tokens.set(other.id,other);
+ const first=await splitToken(token),second=await splitToken(other);
+ assert.equal(scene.tokens.size,16);assert.equal(new Set([...first.tokens,...second.tokens].map(t=>t.name)).size,16);
+ if(mode==='horde'){assert.equal(first.tokens[0].name,'Goblin 1.1');assert.equal(second.tokens.at(-1).name,'Goblin 2.8');}
+ else {assert.equal(first.tokens[0].name,'Goblin 1');assert.equal(second.tokens.at(-1).name,'Goblin 16');}
+ }
+ });
+test('equal and random HP distribution respect different stored per-creature maxima',()=>{
+ for(const mode of ['equal','random'])for(const total of [3,8,15]){
+ const hp=distributeHP(total,3,[1,5,9],mode);assert.equal(hp.reduce((a,b)=>a+b,0),total);assert.ok(hp.every((n,i)=>n>=1&&n<=[1,5,9][i]));
+ }
+});
+test('splitting a Horde with rolled maxima gives each member its actual maximum',async()=>{
+ const {token,scene}=fixture({count:3,hp:16});game.combat=null;game.combats=new Map();
+ token.actor.system.attributes.hp.max=16;token.flags[ID].population={...token.flags[ID].population,initial:3,current:3,maxima:[3,8,5],members:[3,8,5]};
+ const result=await splitToken(token);assert.equal(scene.tokens.size,3);
+ assert.deepEqual(result.tokens.map(t=>t.actor.system.attributes.hp.max),[3,8,5]);assert.equal(result.hp.reduce((a,b)=>a+b,0),16);
+ for(const member of result.tokens){await syncPopulation(member);assert.equal(member.getFlag(ID,'horde').count,1);}
 });

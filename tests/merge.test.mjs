@@ -1,3 +1,4 @@
+import {mockSettings} from './test-settings.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mergeTokens,mergePlan,mergedInitiative} from '../scripts/merge.mjs';
@@ -27,7 +28,7 @@ function fixture({linked=false,failUpdate=false,failDelete=false}={}){
  async updateEmbeddedDocuments(type,data){if(failUpdate)throw Error('combat update failed');for(const d of data)apply(this.combatants.get(d._id),d);},
  async deleteEmbeddedDocuments(type,ids){for(const id of ids)this.combatants.delete(id);this.turns=this.turns.filter(c=>!ids.includes(c.id));},
  async createEmbeddedDocuments(type,data){return data.map((d,i)=>{const c={...structuredClone(d),id:'new'+i,uuid:'Combat.x.Combatant.new'+i,toObject(){return {...d,_id:this.id};}};this.combatants.set(c.id,c);this.turns.push(c);return c;});}});
- globalThis.game={settings:{get:()=>undefined},combats:new Map([['x',combat]]),combat};
+ globalThis.game={settings:mockSettings(),combats:new Map([['x',combat]]),combat};
  return {scene,docs,combat,rows};
 }
 test('merge sums HP and maximum HP, keeps wounded members and uses median initiative',async()=>{
@@ -109,4 +110,16 @@ test('split members with different synthetic actor names merge immediately and k
 test('equivalent string and numeric attack limits do not block remerging individual members',async()=>{
  const {docs}=fixture();docs[0].flags[ID]={horde:{enabled:true,count:1,attackLimit:1}};docs[1].flags[ID]={horde:{enabled:true,count:1,attackLimit:'1'}};
  const result=await mergeTokens(docs);assert.equal(result.count,3);
+});
+test('same-NPC individuals with different rolled maximum HP merge and split without losing their caps',async()=>{
+ const {docs}=fixture();docs[0].actor.system.attributes.hp={max:3,value:3,temp:0};docs[1].actor.system.attributes.hp={max:8,value:8,temp:0};docs[2].actor.system.attributes.hp={max:5,value:5,temp:0};
+ const merged=await mergeTokens(docs);assert.equal(merged.max,16);assert.equal(merged.hp,16);assert.equal(merged.count,3);
+ const split=await splitToken(merged.token);assert.deepEqual(split.tokens.map(token=>token.actor.system.attributes.hp.max),[3,8,5]);
+});
+test('the last survivor of a rolled Horde merges using its own cap rather than a fallen member’s cap',async()=>{
+ const {docs,scene}=fixture();[3,8,5].forEach((max,i)=>{docs[i].actor.system.attributes.hp={max,value:max,temp:0};});
+ const merged=await mergeTokens(docs);merged.token.actor.system.attributes.hp.value=4;await syncPopulation(merged.token);
+ assert.equal(merged.token.getFlag(ID,'horde').count,1);
+ const [extra]=await scene.createEmbeddedDocuments('Token',[{actorId:'goblin',delta:{system:{attributes:{hp:{max:7,value:7,temp:0}},traits:{size:'sm'}}}}]);
+ const result=await mergeTokens([merged.token,extra]);assert.equal(result.max,12);assert.equal(result.hp,11);assert.equal(result.count,2);
 });
