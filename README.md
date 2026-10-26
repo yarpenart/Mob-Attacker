@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.4.0
+# YarpenArt: Mob Attacker — 0.4.1
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -16,11 +16,15 @@ Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`,
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
 
+## What changed in 0.4.1
+
+**Merged Horde initiative** is a world setting with **Highest**, **Median** (default), and **Lowest** options. It uses the rolled initiatives of the selected creatures in each combat. Unrolled entries are ignored; if none have rolled, the Horde stays unrolled. For an even number of results, the median is the average of the two middle values, including fractional results. Splitting again gives every member the resulting Horde initiative.
+
 ## What changed in 0.4.0
 
 The former Split Horde control is now **Split/Merge Horde**. Select multiple individual NPC tokens of the same creature and click it to merge them into one Horde; use it on a multi-member Horde to split it again. The action is available on the Token toolbar and inside the single Horde menu on the token HUD or NPC sheet. Right-click the initiative Horde button to open the same complete menu; left-click still toggles membership.
 
-Merging adds current HP and base maximum HP, retains the active selected combatant (or the clicked token), and keeps that combatant's initiative. The other selected tokens and their initiative entries are replaced by the retained Horde. Existing target progress is not reset. If any member has spent an attack slot this round, that slot remains spent for the merged Horde; merging does not grant free attacks.
+Merging adds current HP and base maximum HP, retains the active selected combatant (or the clicked token), and uses the configured highest/median/lowest initiative of the merged combatants. The other selected tokens and their initiative entries are replaced by the retained Horde. Existing target progress is not reset. If any member has spent an attack slot this round, that slot remains spent for the merged Horde; merging does not grant free attacks.
 
 Only living individual NPCs on the same scene, with the same actor, base size, base maximum HP, and attack limit can merge. The retained token supplies the resulting actor's items, resources, and effects; different stat blocks are not combined. Temporary HP is summed into the shared pool.
 
