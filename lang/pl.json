@@ -169,6 +169,7 @@
     "confirmUnmarkHorde": "Czy usunąć oznaczenie hordy z {name}?",
     "confirmHordeChange": "Potwierdź zmianę",
     "selectedUnits": "zaznaczonych NPC ({count})",
-    "hordeStateChanged": "Oznaczenie hordy zmieniło się w czasie potwierdzania. Kliknij ponownie, aby sprawdzić aktualny stan."
+    "hordeStateChanged": "Oznaczenie hordy zmieniło się w czasie potwierdzania. Kliknij ponownie, aby sprawdzić aktualny stan.",
+    "noEquivalentAttack": "Aktywny NPC nie ma pasującego ataku. Otwórz jego kartę lub wybierz wspólny atak."
   }
 }

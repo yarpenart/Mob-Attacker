@@ -169,6 +169,7 @@
     "confirmUnmarkHorde": "Remove Horde marking from {name}?",
     "confirmHordeChange": "Confirm change",
     "selectedUnits": "selected NPCs ({count})",
-    "hordeStateChanged": "Horde membership changed while the confirmation was open. Click again to review the current state."
+    "hordeStateChanged": "Horde membership changed while the confirmation was open. Click again to review the current state.",
+    "noEquivalentAttack": "The active NPC has no matching attack. Open its sheet or choose a shared attack."
   }
 }
