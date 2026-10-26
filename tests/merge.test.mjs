@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mergeTokens,mergePlan} from '../scripts/merge.mjs';
+import {mergeTokens,mergePlan,mergedInitiative} from '../scripts/merge.mjs';
 import {syncPopulation,ID} from '../scripts/population.mjs';
 import {splitToken} from '../scripts/split.mjs';
 globalThis.foundry={utils:{deepClone:structuredClone}};
@@ -30,10 +30,10 @@ function fixture({linked=false,failUpdate=false,failDelete=false}={}){
  globalThis.game={settings:{get:()=>undefined},combats:new Map([['x',combat]]),combat};
  return {scene,docs,combat,rows};
 }
-test('merge sums HP and maximum HP, keeps wounded members and retained initiative',async()=>{
+test('merge sums HP and maximum HP, keeps wounded members and uses median initiative',async()=>{
  const {docs,scene,combat}=fixture();const result=await mergeTokens(docs,{preferred:docs[2]});
  assert.equal(result.token,docs[0]);assert.equal(scene.tokens.size,1);assert.equal(result.count,3);assert.equal(result.hp,7);assert.equal(result.max,21);
- assert.equal(result.token.name,'Goblin (Horde)');assert.equal(combat.combatants.size,1);assert.equal(combat.combatant.initiative,8);
+ assert.equal(result.token.name,'Goblin (Horde)');assert.equal(combat.combatants.size,1);assert.equal(combat.combatant.initiative,12);
  assert.equal(combat.combatant.name,'Goblin (Horde)');assert.equal(result.token.actor.system.attributes.hp.temp,3);
  await syncPopulation(result.token);assert.equal(result.token.getFlag(ID,'horde').count,3);
  const ledger=combat.getFlag(ID,'ledger');assert.equal(ledger.entries[0][1].total,1);assert.equal(ledger.turns.length,1);assert.equal(ledger.turns[0].hits,1);
@@ -71,3 +71,29 @@ test('the retained combatant cannot gain a free attack slot by merging',async()=
  const {reserveTurn}=await import('../scripts/logic.mjs');const {docs,combat}=fixture();await mergeTokens(docs);
  assert.throws(()=>reserveTurn(combat.getFlag(ID,'ledger'),{combatant:combat.combatant.uuid,round:1,target:'target',group:'Goblin',limit:1}),/TURN_SPENT/);
 });
+
+ test('initiative selection handles odd/even medians, fractions, zero, negatives and unrolled entries',()=>{
+ assert.equal(mergedInitiative([17,8,12]),12);assert.equal(mergedInitiative([20,8,17,12]),14.5);
+ assert.equal(mergedInitiative([null,undefined,NaN,Infinity]),null);assert.equal(mergedInitiative([null,0,-2]),-1);
+ assert.equal(mergedInitiative([8,17,12],'highest'),17);assert.equal(mergedInitiative([8,17,12],'lowest'),8);
+ assert.equal(mergedInitiative([7,7,7]),7);assert.throws(()=>mergedInitiative([1],'invalid'));
+ });
+ test('merging honors the world initiative setting in every selection mode',async()=>{
+ for(const [mode,expected] of [['highest',17],['median',12],['lowest',8]]){
+ const {docs,combat}=fixture();game.settings.get=(id,key)=>key==='mergeInitiative'?mode:undefined;
+ await mergeTokens(docs);assert.equal(combat.combatant.initiative,expected);
+ }
+ });
+ test('unrolled creatures are excluded and an entirely unrolled merge remains unrolled',async()=>{
+ let context=fixture();context.rows[0].initiative=null;context.rows[1].initiative=undefined;context.rows[2].initiative=9;
+ await mergeTokens(context.docs);assert.equal(context.combat.combatant.initiative,9);
+ context=fixture();for(const row of context.rows)row.initiative=null;
+ await mergeTokens(context.docs);assert.equal(context.combat.combatant.initiative,null);
+ });
+ test('initiative reordering preserves the active combatant outside the merged selection',async()=>{
+ const {docs,combat}=fixture();const outsider={id:'outside',tokenId:'other',initiative:15};combat.turns.unshift(outsider);combat.combatants.set(outsider.id,outsider);
+ const update=combat.updateEmbeddedDocuments.bind(combat);
+ combat.updateEmbeddedDocuments=async(...args)=>{await update(...args);combat.turns.sort((a,b)=>b.initiative-a.initiative);};
+ await mergeTokens(docs);assert.equal(combat.combatant.id,'outside');assert.equal(combat.combatants.size,2);
+ assert.equal([...combat.combatants.values()].find(c=>c.id!=='outside').initiative,12);
+ });
