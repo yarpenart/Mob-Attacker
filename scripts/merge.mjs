@@ -1,3 +1,4 @@
+import {assignMergedName} from './naming.mjs';
 import {ID,hordeSize,creatureName} from './population.mjs';
 const clone=value=>foundry.utils.deepClone(value);
 const combats=()=>Array.from(game.combats?.values?.() ?? (game.combat?[game.combat]:[]));
@@ -21,7 +22,8 @@ export function mergePlan(tokens,preferred) {
     if(actor?.type!=='npc'||doc.parent?.id!==anchor.parent?.id)throw Error('Select NPC tokens on the same scene');
     if(doc.getFlag(ID,'splitLock')||doc.getFlag(ID,'mergeLock'))throw Error('A selected token is already being split or merged');
     if(config.enabled&&Number(config.count??1)!==1)throw Error('Merge only individual living creatures; split larger Hordes first');
-    const hp=Number(actor.system.attributes.hp.value),max=Number(pop?.baseHP ?? actor.system.attributes.hp.max),size=pop?.baseSize ?? actor.system.traits.size;
+    const livingIndex=pop?.members?.findIndex(hp=>hp>0)??0;
+    const hp=Number(actor.system.attributes.hp.value),max=Number(pop?.maxima?.[Math.max(0,livingIndex)] ?? pop?.baseHP ?? actor.system.attributes.hp.max),size=pop?.baseSize ?? actor.system.traits.size;
     if(!Number.isSafeInteger(hp)||!Number.isSafeInteger(max)||hp<1||hp>max)throw Error('Each selected creature must have 1 to its base maximum HP');
     const baseActorId=doc.baseActor?.id??doc.actorId,attackLimit=Number(config.attackLimit??1);
     if(!baseActorId||!Number.isSafeInteger(attackLimit)||attackLimit<1||attackLimit>10)throw Error('Selected creatures have invalid base actor or attack limits');
@@ -31,9 +33,8 @@ export function mergePlan(tokens,preferred) {
   // Synthetic actor names belong to individual tokens; they do not identify the base NPC.
   if(members.some(m=>m.baseActorId!==source.baseActorId))throw Error('Merge creatures based on the same NPC actor');
   if(members.some(m=>m.size!==source.size))throw Error('Merge creatures with the same base size');
-  if(members.some(m=>m.max!==source.max))throw Error('Merge creatures with the same base maximum HP');
   if(members.some(m=>m.attackLimit!==source.attackLimit))throw Error('Merge creatures with the same attack limit');
-  return {docs,anchor,members,source,count:members.length,hp:members.reduce((n,m)=>n+m.hp,0),max:source.max*members.length};
+  return {docs,anchor,members,source,count:members.length,hp:members.reduce((n,m)=>n+m.hp,0),max:members.reduce((sum,m)=>sum+m.max,0)};
 }
 export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},initiativeMode}={}) {
   requireAuthority();const plan=mergePlan(tokens,preferred),{docs,anchor,members,source,count,hp,max}=plan;
@@ -44,9 +45,10 @@ export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},init
   for(const record of records){record.backups=record.rows.map(c=>clone(c.toObject()));record.initiative=mergedInitiative(record.rows.map(c=>c.initiative),initiativeMode);}
   const baseName=source.pop?.baseName||anchor.baseActor?.name||creatureName(anchor);
   const group=source.config.group||baseName;
-  const population={baseHP:source.max,baseSize:source.size,baseName,soloName:source.pop?.soloName||anchor.name,
-    width:source.pop?.width??anchor.width,height:source.pop?.height??anchor.height,initial:count,current:count,members:members.map(m=>m.hp)};
-  const actorData=source.actor.toObject(),name=`${population.baseName} (Horde)`;
+  const population={baseHP:Number(anchor.baseActor?.system.attributes.hp.max??source.pop?.baseHP??source.max),baseSize:source.size,baseName,soloName:source.pop?.soloName||anchor.name,
+    width:source.pop?.width??anchor.width,height:source.pop?.height??anchor.height,initial:count,current:count,members:members.map(m=>m.hp),maxima:members.map(m=>m.max)};
+  const actorData=source.actor.toObject();
+  let name=`${population.baseName} (Horde)`;
   const system=clone(actorData.system);system.attributes.hp={...system.attributes.hp,max,value:hp,temp:members.reduce((n,m)=>n+Number(m.actor.system.attributes.hp.temp??0),0)};system.traits.size=shape.size;
   let deleting=false;
   try {
@@ -56,6 +58,8 @@ export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},init
       [`flags.${ID}.mergeOrigin`]:{members:docs.map((d,i)=>({uuid:d.uuid,name:d.name,hp:members[i].hp,max:members[i].max})),
         // Keep recoverable snapshots before replacing the source tokens.
         tokens:tokenBackups,combats:records.map(r=>({uuid:r.combat.uuid,combatants:r.backups}))}});
+    ({name}=await assignMergedName(anchor,population.baseName));
+    if(anchor.name!==name)await anchor.update({name});
     for(const record of records){
       const {combat,rows}=record;
       let keep=rows.find(c=>c.tokenId===anchor.id);
@@ -88,7 +92,7 @@ export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},init
     // Nothing has been deleted: restore the retained token and turn counters.
     const backup=tokenBackups[docs.indexOf(anchor)];
     await anchor.update({...backup,[`flags.${ID}.-=mergeLock`]:null,[`flags.${ID}.-=mergeOrigin`]:null,
-      ...(!backup.flags?.[ID]?.population?{[`flags.${ID}.-=population`]:null}:{}),...(!backup.flags?.[ID]?.horde?{[`flags.${ID}.-=horde`]:null}:{})},{diff:false,recursive:false});
+      ...(!backup.flags?.[ID]?.naming?{[`flags.${ID}.-=naming`]:null}:{}),...(!backup.flags?.[ID]?.population?{[`flags.${ID}.-=population`]:null}:{}),...(!backup.flags?.[ID]?.horde?{[`flags.${ID}.-=horde`]:null}:{})},{diff:false,recursive:false});
     for(const record of records){
       if(record.ledger)await record.combat.setFlag(ID,'ledger',record.ledger);
       if(record.keep&&!record.rows.some(c=>c.id===record.keep.id))await record.combat.deleteEmbeddedDocuments('Combatant',[record.keep.id]);

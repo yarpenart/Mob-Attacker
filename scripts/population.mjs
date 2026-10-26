@@ -1,3 +1,4 @@
+import {hordeLabel} from './naming.mjs';
 /** Population is token-local; never scale a shared world actor. */
 export const ID='yarpenart-mob-attacker';
 export function livingCount(hp,base,initial) {
@@ -27,7 +28,7 @@ export function creatureName(doc) {
 export async function syncHordeName(doc,count,population=doc?.getFlag(ID,'population')) {
   if(!doc?.actor)return;
   const base=population?.baseName || creatureName(doc);
-  const name=count>1 ? `${base} (Horde)` : population?.soloName || base;
+  const name=count>1 ? await hordeLabel(doc,base) : population?.soloName || base;
   if(doc.name!==name)await doc.update({name});
   for(const combat of globalThis.game?.combats?.values?.() ?? (globalThis.game?.combat ? [game.combat] : [])) {
     const updates=Array.from(combat.combatants?.values?.() ?? []).filter(c=>c.tokenId===doc.id && (!c.sceneId || c.sceneId===doc.parent?.id) && c.name!==name).map(c=>({_id:c.id,name}));
@@ -36,12 +37,25 @@ export async function syncHordeName(doc,count,population=doc?.getFlag(ID,'popula
 }
 /** Merged wounded individuals retain their living count and wounds. */
 export function updateMembers(members,hp,baseHP) {
+  const limits=Array.isArray(baseHP)?baseHP:members.map(()=>baseHP);
   const result=[...members];let delta=hp-result.reduce((a,b)=>a+b,0);
   if(delta<0)for(let i=0;i<result.length&&delta<0;i++){const loss=Math.min(result[i],-delta);result[i]-=loss;delta+=loss;}
   if(delta>0)for(const alive of [true,false])for(let i=0;i<result.length&&delta>0;i++) {
-    if((result[i]>0)!==alive)continue;const gain=Math.min(baseHP-result[i],delta);result[i]+=gain;delta-=gain;
+    if((result[i]>0)!==alive)continue;const gain=Math.min(limits[i]-result[i],delta);result[i]+=gain;delta-=gain;
   }
   return result;
+}
+export async function rollMemberMaxima(actor,count) {
+  const custom=game.settings.get(ID,'hordeHPFormula');
+  const formula=(typeof custom==='string'&&custom.trim())||actor.system.attributes.hp.formula;
+  if(!formula)throw Error('This NPC has no HP formula. Set a formula in Horde HP settings.');
+  const values=[];
+  for(let i=0;i<count;i++){
+    const roll=await new Roll(formula,actor.getRollData()).evaluate();
+    if(!Number.isFinite(roll.total))throw Error('Invalid creature HP roll');
+    values.push(Math.max(1,Math.floor(roll.total)));
+  }
+  return values;
 }
 export async function syncPopulation(doc,options={}) {
   if (!doc?.actor || doc.documentName==='Actor') return;
@@ -57,8 +71,9 @@ export async function syncPopulation(doc,options={}) {
   }
   const hp=actor.system.attributes.hp;
   if (!config.enabled) {
-    const remaining=hp.value>0 ? ((hp.value-1)%population.baseHP)+1 : 0;
-    await actor.update({'system.attributes.hp.max':population.baseHP,'system.attributes.hp.value':remaining,
+    const remaining=population.members?.find(value=>value>0)??(hp.value>0 ? ((hp.value-1)%population.baseHP)+1 : 0);
+    const singleMax=population.maxima?.[Math.max(0,population.members.findIndex(hp=>hp>0))]??population.baseHP;
+    await actor.update({'system.attributes.hp.max':singleMax,'system.attributes.hp.value':remaining,
       'system.traits.size':population.baseSize},{yaHordePopulation:true});
     await syncHordeName(doc,1,population);
     await doc.update({width:population.width,height:population.height,[`flags.${ID}.horde`]:{...config,count:1},
@@ -66,7 +81,7 @@ export async function syncPopulation(doc,options={}) {
     return;
   }
   const requested=Number(config.count ?? 1);
-  const resize=!population || options.reconfigure && requested!==population.current;
+  const resize=!population || options.reconfigure && requested!==population.current || options.rerollHP;
   if (!population) {
     const baseHP=Number(hp.max);
     if (!(baseHP>0)) throw Error('Horde requires positive maximum HP');
@@ -77,16 +92,20 @@ export async function syncPopulation(doc,options={}) {
   population.soloName ??= String(doc.name || population.baseName).replace(/(?:\s*\(Horde\))+\s*$/i,'').trim();
   let currentHP=Number(hp.value);
   if (resize) {
-    delete population.members;
+    const oldMax=Number(hp.max),damage=Math.max(0,oldMax-currentHP);
+    delete population.members;delete population.maxima;
     population.initial=requested;
-    // Keep existing damage when changing population, rather than healing it.
-    const oldMax=population.current===requested && !doc.getFlag(ID,'population') ? population.baseHP : Number(hp.max);
-    currentHP=Math.max(0,population.baseHP*requested-Math.max(0,oldMax-currentHP));
+    if(options.rerollHP||game.settings.get(ID,'hordeHPMode')==='rolled') {
+      population.maxima=await rollMemberMaxima(actor,requested);
+      const total=population.maxima.reduce((a,b)=>a+b,0);
+      currentHP=Math.max(0,total-damage);
+      population.members=updateMembers(population.maxima,currentHP,population.maxima);
+    } else currentHP=Math.max(0,population.baseHP*requested-damage);
   }
-  if(Array.isArray(population.members)) {population.members=updateMembers(population.members,currentHP,population.baseHP);population.current=population.members.filter(hp=>hp>0).length;}
+  if(Array.isArray(population.members)) {population.members=updateMembers(population.members,currentHP,population.maxima??population.baseHP);population.current=population.members.filter(hp=>hp>0).length;}
   else population.current=livingCount(currentHP,population.baseHP,population.initial);
   const shape=hordeSize(population.current,population.baseSize);
-  const max=population.baseHP*population.initial;
+  const max=population.maxima?.reduce((a,b)=>a+b,0)??population.baseHP*population.initial;
   const actorUpdate={};
   if (hp.max!==max) actorUpdate['system.attributes.hp.max']=max;
   if (hp.value!==currentHP) actorUpdate['system.attributes.hp.value']=currentHP;

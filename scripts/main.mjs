@@ -1,3 +1,4 @@
+import {settingsUI} from './settings.mjs';
 import {mergeTokens} from './merge.mjs';
 import {splitToken} from './split.mjs';
 import {installSaves} from './saves.mjs';
@@ -140,8 +141,9 @@ export async function configure(doc, actor = doc.actor ?? doc) {
   const s = settings(doc, actor), population=doc.getFlag(ID,'population');
   const result = await dialog(`${t('title')} — ${actor.name}`, configFields({...s,count:Math.max(1,s.count)})
     + (population ? `<p>${esc(t('populationInfo',{initial:population.initial,current:population.current,hp:population.baseHP}))}</p>` : '')
-    + `<p class="hint">${esc(t('configHint'))}</p>` + field('bonus','bonus',s.bonus) + field('damage','damage',s.damage), configValues);
-  if (result && result !== 'cancel') { await doc.setFlag(ID,'horde',{...s,...result}); await syncPopulation(doc,{config:{...s,...result},reconfigure:true}); ui.combat?.render(); }
+    + (population?.maxima ? `<p>${esc(t('memberMaxima',{values:population.maxima.join(', ')}))}</p>` : '')
+    + `<p class="hint">${esc(t('configHint'))}</p>` + check('rerollHordeHP','rerollHP',false) + field('bonus','bonus',s.bonus) + field('damage','damage',s.damage), form=>({...configValues(form),rerollHP:form.elements.namedItem('rerollHP').checked}));
+  if(result&&result!=='cancel'){const {rerollHP,...config}=result;await doc.setFlag(ID,'horde',{...s,...config});await syncPopulation(doc,{config:{...s,...config},reconfigure:true,rerollHP});ui.combat?.render();}
 }
 function targets() {
   const tokens = canvas.tokens?.placeables?.filter(token => token.actor && token.document.uuid) ?? [];
@@ -513,9 +515,11 @@ export function renderHUD(app,html) {
   const doc=app.document ?? app.object?.document ?? app.object,actor=doc?.actor;
   if (actor?.type !== 'npc') return;
   const s=settings(doc,actor),container=root(html)?.querySelector('.col.right');
-  // Partial HUD renders must not leave the old standalone split control behind.
-  for(const button of container?.querySelectorAll('[data-ya-horde-key="splitHorde"], [data-ya-horde-key="splitMergeHorde"]')??[])button.remove();
-  injectButton(container,'Horde',s.enabled,() => hordeMenu(doc,actor));
+  // HUD instances reuse their DOM: always rebind to the currently bound token.
+  for(const old of container?.querySelectorAll('[data-ya-horde-key]')??[])old.remove();
+  injectButton(container,'Horde',s.enabled,() => hordeMenu(doc,actor),{key:'hudMenu'});
+  const button=container?.querySelector('[data-ya-horde-key="hudMenu"]');
+  if(button){button.classList?.add('control-icon');button.addEventListener('pointerdown',event=>event.stopPropagation());button.addEventListener('mousedown',event=>event.stopPropagation());}
 }
 let sizeTimer;
 function scheduleSizes() {
@@ -558,13 +562,15 @@ export async function interceptChat(wrapped,text,...args) {
   return undefined;
 }
 export const saves=installSaves({t,esc,dialog,field,select,value,card,requireAuthority,authority,settings,sourceFor,injectButton,root,guard});
+export const settingsPanels=settingsUI({t,esc,dialog,field,select,check,value,requireAuthority,notifyError,SIZE_DEFAULTS,scheduleSizes});
 Hooks.once('init',() => {
+  settingsPanels.register();
   game.settings.register(ID,'language',{name:'HORDE.language',scope:'client',config:true,type:String,choices:{en:'English',pl:'Polski'},default:'en',onChange:loadLanguage});
   game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:false});
-  game.settings.register(ID,'mergeInitiative',{name:'HORDE.mergeInitiative',hint:'HORDE.mergeInitiativeHint',scope:'world',config:true,type:String,choices:{highest:'HORDE.initiativeHighest',median:'HORDE.initiativeMedian',lowest:'HORDE.initiativeLowest'},default:'median'});
-  game.settings.register(ID,'splitInitiative',{name:'HORDE.splitInitiative',hint:'HORDE.splitInitiativeHint',scope:'world',config:true,type:String,choices:{shared:'HORDE.splitInitiativeShared',reroll:'HORDE.splitInitiativeReroll'},default:'shared'});
-  game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:true,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
-  for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:true,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
+  game.settings.register(ID,'mergeInitiative',{name:'HORDE.mergeInitiative',hint:'HORDE.mergeInitiativeHint',scope:'world',config:false,type:String,choices:{highest:'HORDE.initiativeHighest',median:'HORDE.initiativeMedian',lowest:'HORDE.initiativeLowest'},default:'median'});
+  game.settings.register(ID,'splitInitiative',{name:'HORDE.splitInitiative',hint:'HORDE.splitInitiativeHint',scope:'world',config:false,type:String,choices:{shared:'HORDE.splitInitiativeShared',reroll:'HORDE.splitInitiativeReroll'},default:'shared'});
+  game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:false,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
+  for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:false,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
   game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
 });
 Hooks.once('ready',async () => {
