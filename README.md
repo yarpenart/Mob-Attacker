@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.3.1
+# YarpenArt: Mob Attacker — 0.4.0
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -16,6 +16,16 @@ Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`,
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
 
+## What changed in 0.4.0
+
+The former Split Horde control is now **Split/Merge Horde**. Select multiple individual NPC tokens of the same creature and click it to merge them into one Horde; use it on a multi-member Horde to split it again. The action is available on the Token toolbar and inside the single Horde menu on the token HUD or NPC sheet. Right-click the initiative Horde button to open the same complete menu; left-click still toggles membership.
+
+Merging adds current HP and base maximum HP, retains the active selected combatant (or the clicked token), and keeps that combatant's initiative. The other selected tokens and their initiative entries are replaced by the retained Horde. Existing target progress is not reset. If any member has spent an attack slot this round, that slot remains spent for the merged Horde; merging does not grant free attacks.
+
+Only living individual NPCs on the same scene, with the same actor, base size, base maximum HP, and attack limit can merge. The retained token supplies the resulting actor's items, resources, and effects; different stat blocks are not combined. Temporary HP is summed into the shared pool.
+
+Merged wounded creatures retain their individual wounds internally, so two goblins at 1 HP remain two members with 2 HP total. Subsequent damage is assigned to those members in order; healing fills living members' wounds before restoring fallen members. Splitting uses the configured equal/random distribution and preserves the total HP and living count. Manually changing the population count resets this individual wound tracking to the standard pooled model.
+
 ## What changed in 0.3.1
 
 Tokens representing more than one living creature are named **Base creature name (Horde)**, and their initiative entries use the same name. The suffix is removed when one or zero members remain, when Horde is disabled, or when the group splits into individual tokens. Existing initialized Hordes are renamed on world reload. The shared actor's name is unchanged.
@@ -25,14 +35,14 @@ Tokens representing more than one living creature are named **Base creature name
 - Independent world settings control the creature counts required for each token size, based on the original creature being Small, Medium, or Large.
 - **Split Horde** converts a token into one token per living member, retaining total current HP, the original initiative, and already spent attack slots.
 - Choose equal or random HP distribution in module settings. Random distribution assigns 1 to the member's base maximum HP while preserving the original total.
-- The NPC sheet has one **Horde** button before the source/XP information. It opens Configure Horde, Force hit, Horde saving throw, and Split Horde.
+- The NPC sheet has one **Horde** button before the source/XP information. It opens Configure Horde, Force hit, Horde saving throw, and Split/Merge Horde.
 - Repository documentation and release descriptions are in English. The Polish interface remains available.
 
 ## Marking and configuring Hordes
 
 Select NPC tokens and click the group icon on the Token toolbar, or use `/horde toggle`. If all selected tokens are marked, the action unmarks them; otherwise, it marks all of them. Player characters are ignored.
 
-Each NPC combatant has a **Horde** toggle in initiative. Click to toggle; right-click to configure. A token's HUD has a Horde menu and, for a Horde with at least two living members, a direct **Split Horde** button. On the NPC sheet, the single **Horde** button opens all actions.
+Each NPC combatant has a **Horde** toggle in initiative. Click to toggle; right-click to open the full Horde menu. A token's HUD has one **Horde** button that opens all actions, including Split/Merge Horde. On the NPC sheet, the single **Horde** button opens all actions.
 
 Use the same Horde identifier for members that should share progress. Eight separate goblins should each represent one creature; one token representing eight goblins should have a count of eight. Native attacks with different attack bonuses retain separate progress because they use different table thresholds.
 
@@ -104,7 +114,7 @@ Medium/Small tokens occupy 1×1 grid spaces; Large 2×2, Huge 3×3, and Gargantu
 
 ## Splitting a Horde
 
-Open the specific token's HUD and click **Split Horde**, or use **Horde → Split Horde** on its sheet. The Horde must have at least two living members. All living members become individual tokens, still marked as members of the same Horde.
+Open the specific token's HUD and choose **Horde → Split/Merge Horde**, or use the same menu on its sheet or by right-clicking its initiative Horde button. The Horde must have at least two living members. All living members become individual tokens, still marked as members of the same Horde.
 
 The original token and combatant are retained as the first member. New tokens receive independent HP, the creature's original size, and copies of its items/effects. Nearby free positions are used; splitting stops before changing anything if there is insufficient space within the scene. Placement avoids occupied token footprints but does not evaluate walls or terrain.
 
@@ -152,7 +162,7 @@ Select an NPC token; during combat, the active NPC is preferred for attacks.
 
 The attack command format is `/horde BONUS | DAMAGE | CREATURES | ATTACKS | NAME`. Without a damage formula, marked raw rolls use the configured formula. Ordinary `/r`, inline rolls, and arbitrary macros are not guessed to be attacks. Macros using `AttackActivity.rollAttack` are integrated.
 
-The module API is available at `game.modules.get("yarpenart-mob-attacker").api`, including `configure`, `attack`, `save`, `split`, `reset`, `help`, and `toggleSelected`.
+The module API is available at `game.modules.get("yarpenart-mob-attacker").api`, including `configure`, `attack`, `save`, `split`, `splitMerge`, `mergeSelected`, `reset`, `help`, and `toggleSelected`.
 
 ## Visibility, compatibility, and validation
 
