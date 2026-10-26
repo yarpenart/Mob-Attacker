@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.4
+# YarpenArt: Mob Attacker — 0.5.5
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,18 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.5
+
+An audit against the reported workflows found gaps missed by simpler document fixtures. Added tests that model Foundry’s recursive in-place flag updates and corrected:
+
+- Switching rolled HP back to statblock HP no longer retains stale per-member caps.
+- A former rolled singleton uses its original statblock HP when rebuilding an average-HP Horde.
+- Failed splits restore original population, HP caps, combat session and recovery metadata; later population sync does not collapse the restored Horde.
+- An open NPC sheet cannot lend an unmatched attack to a different active Horde creature.
+- Old save forms, damage dialogs and result cards cannot carry into another encounter or damage replacement members with unchanged total HP/count.
+
+See [AUDIT.md](AUDIT.md) for the checklist, coverage and limits of validation. **142 automated tests pass**, including tests run from the packaged ZIP. These are fixture-based tests, not a live Foundry/Forge certification.
 
 ## What changed in 0.5.4
 
