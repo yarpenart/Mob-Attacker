@@ -112,6 +112,11 @@
     "size_lg_grg": "Base Large → Gargantuan: minimum creatures",
     "splitMergeHorde": "Split/Merge Horde",
     "mergeDone": "Merged {count} creatures into one Horde token.",
-    "mergeSelect": "Select at least two individual NPC tokens to merge, or use this button on one Horde token to split it."
+    "mergeSelect": "Select at least two individual NPC tokens to merge, or use this button on one Horde token to split it.",
+    "mergeInitiative": "Merged Horde initiative",
+    "mergeInitiativeHint": "Choose the highest, median or lowest rolled initiative of the merged creatures. Unrolled entries are ignored. An even-sized median is the average of the middle two values.",
+    "initiativeHighest": "Highest",
+    "initiativeMedian": "Median",
+    "initiativeLowest": "Lowest"
   }
 }
