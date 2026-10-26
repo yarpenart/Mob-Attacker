@@ -22,7 +22,7 @@ Releases are published manually with `module.json` and `mob-attacker.zip` attach
 - Naming settings offer continuous numbering across Hordes (`Goblin 1` through `Goblin 16` for two groups of eight), random adjectives, custom templates, and numbered/adjective Horde names.
 - Durable world counters avoid restarting numbers after reload. Each base NPC has its own sequence; generated individual names also avoid collisions on the scene.
 - Related settings are organized into three GM-only menus: **Population size rules**, **HP, split and merge rules**, and **Horde and member naming**. Existing size/initiative/HP-distribution choices are preserved.
-- Optional per-member maximum HP rolls use the NPC HP formula or a custom formula. The sum becomes Horde maximum HP and stored individual maxima survive split/merge. The default remains maximum HP from the NPC sheet.
+- Optional per-member maximum HP rolls use the NPC HP formula or a custom formula. The sum becomes Horde maximum HP and stored individual maxima survive split/merge. The default remains the HP value written in the base NPC statblock, normally the average of its HP formula.
 - HUD buttons explicitly accept pointer events and rebind when the HUD switches tokens. The HUD still has only one Horde menu button.
 - Module windows have explicit light/dark palettes, readable controls, scrollable long forms, and accessible contrast for normal text, hints, inputs and disabled controls.
 
@@ -48,7 +48,7 @@ Counters advance permanently, including when an attempted operation needs to be 
 
 ## Optional rolled maximum HP
 
-Open **HP, split and merge rules → New Horde maximum HP**. The default is the original NPC sheet maximum multiplied by population. **Roll maximum HP for each member** evaluates the NPC's HP formula separately for every member and sums the results; an optional custom formula overrides the NPC formula.
+Open **HP, split and merge rules → New Horde maximum HP**. The default is the HP value written in the original NPC statblock, normally its average HP, multiplied by population. It does not maximize the dice formula. **Roll maximum HP for each member** evaluates the NPC's HP formula separately for every member and sums the results; an optional custom formula overrides the NPC formula.
 
 Results are stored, not rerolled on attacks, HP edits, healing, or reload. The Horde configuration can also explicitly **Reroll member maximum HP now** while retaining damage. Stored maxima are visible in that configuration. Splitting keeps each living member's rolled maximum and distributes current HP without exceeding those individual caps. Merging same-NPC members with different rolled maxima preserves their sum and individual limits instead of rerolling them.
 
