@@ -68,6 +68,17 @@ export async function trackInitiative(row){
  const combat=row.parent,doc=row.token;if(!combat?.started||!doc||doc.getFlag(ID,'splitLock')||doc.getFlag(ID,'mergeLock'))return;
  if(doc.getFlag(ID,'horde')?.enabled)await rememberInitiatives([doc],combat);
 }
+/** Base creature names are independent of numbered token/Horde labels. */
+export function summaryByUnit(members){
+ const groups=new Map();
+ for(const member of members){
+  const name=String(member.name??'NPC').trim()||'NPC';
+  const row=groups.get(name)??{name,total:0,killed:0,survived:0};
+  row.total++;if(member.hp<=0)row.killed++;else row.survived++;
+  groups.set(name,row);
+ }
+ return Array.from(groups.values()).sort((a,b)=>a.name.localeCompare(b.name));
+}
 export async function finishCombat(combat,{deleted=false,t=key=>key,esc=value=>String(value)}={}){
  return enqueue(async()=>{
   const session=clone(combat.getFlag(ID,'session'));if(!session||session.finished||finished.has(session.id))return;
@@ -86,8 +97,10 @@ export async function finishCombat(combat,{deleted=false,t=key=>key,esc=value=>S
   }
   if(!deleted){for(const key of ['session','ledger','saveLedger'])if(combat.getFlag(ID,key))await combat.unsetFlag(ID,key);}
   if(combat.scene?.unsetFlag)for(const key of ['ledger','saveLedger'])if(combat.scene.getFlag(ID,key))await combat.scene.unsetFlag(ID,key);
+  const units=summaryByUnit(session.members);
+  const table=`<table><thead><tr>${['summaryUnit','summaryTotal','summarySurvived','summaryKilled'].map(key=>`<th scope="col">${esc(t(key))}</th>`).join('')}</tr></thead><tbody>${units.map(row=>`<tr><th scope="row">${esc(row.name)}</th><td>${row.total}</td><td>${row.survived}</td><td>${row.killed}</td></tr>`).join('')}</tbody></table>`;
   if(total&&game.settings.get(ID,'combatSummary')!==false)await ChatMessage.create({
-   content:`<div class="ya-horde-card"><strong>${esc(t('combatSummaryTitle'))}</strong><p>${esc(t('combatSummaryText',{total,killed,survived:total-killed}))}</p></div>`,
+   content:`<div class="ya-horde-card"><strong>${esc(t('combatSummaryTitle'))}</strong><p>${esc(t('combatSummaryText',{total,killed,survived:total-killed}))}</p>${table}</div>`,
    whisper:game.users.filter(user=>user.isGM).map(user=>user.id)});
   return {total,killed,survived:total-killed};
  });
