@@ -61,7 +61,7 @@ test('next round starts at attack slot one while keeping its accumulated progres
  let result=await resolve({doc,actor,activity,options:{...opts}});
  assert.equal(result.plans[0].lane,2);
  owner.round=2; result=await resolve({doc,actor,activity,options:{...opts}});
- assert.equal(result.plans[0].lane,1);assert.equal(result.plans[0].result.before,8);assert.equal(result.hits,3);
+ assert.equal(result.plans[0].lane,1);assert.equal(result.plans[0].result.before,16);assert.equal(result.hits,3);
 });
 test('three separate horde tokens complete a single hit across serialized requests',async()=>{
  const calls=[1,2,3].map(i=>resolve({doc:{...doc,uuid:`token${i}`},actor,activity,options:{...opts,count:1}}));
@@ -200,7 +200,7 @@ test('regression: dotted UUID keys are corrupted by document expansion, stored e
   const result=await resolve({doc:{...doc,uuid:`Scene.x.Token.goblin${i}`},actor,activity,
     options:{...opts,group:'Goblins',count:1,bonus:'5'}});
   assert.equal(result.plans[0].result.before,i-1);
-  assert.equal(flags.get('ledger').schema,2);
+  assert.equal(flags.get('ledger').schema,3);
   assert.ok(Array.isArray(flags.get('ledger').entries));
  }
  assert.equal(damageCalls.length,1);
@@ -346,3 +346,20 @@ test('simultaneous clicks on one sheet consume only one initiative attack',async
  assert.equal(flags.get('ledger').turns.length,1);
  assert.equal(flags.get('ledger').entries[0][1].total,1);
 });
+
+ test('second multiattack completes the shared target progress rather than a separate slot',async()=>{
+ const oldAC=target.actor.system.attributes.ac.value;target.actor.system.attributes.ac.value=10;
+ try {
+ const a=initiativeGoblin(1,2);owner.combatant=a;game.user.targets=new Set([{document:target}]);
+ await interceptAttack.call(a.attack,async()=>{});assert.equal(damageCalls.length,0);
+ await interceptAttack.call(a.attack,async()=>{});assert.equal(damageCalls.length,1);
+ assert.equal(flags.get('ledger').entries.length,1);assert.equal(flags.get('ledger').entries[0][1].total,2);
+ await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/TURN_SPENT/);
+ } finally {target.actor.system.attributes.ac.value=oldAC;}
+ });
+ test('schema2 independent partial slots migrate without losing a completed hit',async()=>{
+ const base={group:'Orcs',target:target.uuid,bonus:9,ac:19,total:1,sources:['old'],candidate:null};
+ flags.set('ledger',{schema:2,scope:owner.uuid,entries:[['one',{...base,lane:1}],['two',{...base,lane:2}]],turns:[]});
+ const result=await resolve({doc,actor,activity,options:{...opts,bonus:'9',count:1}});
+ assert.equal(result.hits,1);assert.equal(damageCalls.length,1);assert.equal(result.plans[0].profiles.length,1);
+ });
