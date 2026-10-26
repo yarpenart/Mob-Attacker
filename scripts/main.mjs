@@ -1,3 +1,4 @@
+import {packetAvailable,postDamagePacket} from './damage-packet.mjs';
 import {memoryScope,ensureCombat,finishCombat,trackInitiative} from './combat-memory.mjs';
 import {migrateSceneNames} from './naming.mjs';
 import {settingsUI} from './settings.mjs';
@@ -203,6 +204,7 @@ export async function attackDialog({doc, actor, activity, config = {}, command =
     + (activity?.item.system.attackModes?.length ? select('mode','attackMode',activity.item.system.attackModes.map(c => [c.value,c.label]),mode) : '')
     + (ammoChoices.length ? select('ammo','ammunition',[['',t('none')],...ammoChoices.map(c => [c.value,c.label])],ammo) : '')
     + select('visibility','rollMode',visibilityChoices(),command.rollMode ?? config.rollMode ?? rollMode())
+    + check('combineDamage','combineDamage',game.settings.get(ID,'combineDamage')===true)
     + check('remember','remember',true)
     + check('forceHit','forceHit',config.hordeForceHit ?? command.forceHit ?? false)
     + `<p class="hint">${esc(t('attackHint'))}</p><p class="hint">${esc(t('modeHint'))}</p>`;
@@ -210,7 +212,7 @@ export async function attackDialog({doc, actor, activity, config = {}, command =
     const result = {...configValues(form), target:value(form,'target'),
       attacks:integer(value(form,'attacks'),1,10,t('attacks')),
       lane:value(form,'lane').trim() ? integer(value(form,'lane'),1,1000,t('lane')) : null,
-      remember:form.elements.namedItem('remember').checked,
+      remember:form.elements.namedItem('remember').checked,combineDamage:form.elements.namedItem('combineDamage').checked,
       attackMode:value(form,'attackMode') || mode, ammunition:value(form,'ammunition') || undefined,
       rollMode:value(form,'rollMode'), attackName:command.name,forceHit:form.elements.namedItem('forceHit').checked};
     // Bonus is evaluated again from the chosen weapon mode/ammunition if those changed.
@@ -250,32 +252,34 @@ async function damageProfile(activity, actor, options) {
     speaker:ChatMessage.getSpeaker({actor}),name:activity?.item.name ?? options.attackName ?? actor.name,
     flags:activity ? foundry.utils.deepClone(activity.messageFlags ?? {}) : {}};
 }
-async function damage(activity, actor, options, job, hit) {
+async function damage(activity, actor, options, job, hit, collect=false) {
   const profile=job.profiles[hit];
-  if (!profile.rolls.length) return;
+  if (!profile.rolls.length) return [];
   if (profile.id !== job.currentProfileId) {
     const subject=profile.activityUuid ? await fromUuid(profile.activityUuid) : undefined;
     const rolls=await CONFIG.Dice.DamageRoll.build({isCritical:false,rolls:foundry.utils.deepClone(profile.rolls),
-      hookNames:['damage'],subject}, {configure:false}, {rollMode:options.rollMode,data:{
+      hookNames:['damage'],subject}, {configure:false}, {...(collect?{create:false}:{}),rollMode:options.rollMode,data:{
         speaker:profile.speaker,flavor:profile.name,
         flags:{dnd5e:{...profile.flags,messageType:'roll',roll:{type:'damage'}},
           [ID]:{job:job.id,target:job.target,hit}}}});
     if (!rolls?.length) throw new Error(t('damageCanceled'));
     Hooks.callAll('dnd5e.rollDamage',rolls,{subject});
     Hooks.callAll('dnd5e.rollDamageV2',rolls,{subject});
-    return;
+    return rolls;
   }
   if (activity) {
     const ammo = options.ammunition ? actor.items.get(options.ammunition) : undefined;
-    if (!activity.getDamageConfig({isCritical:false,attackMode:options.attackMode,ammunition:ammo}).rolls?.length) return;
+    if (!activity.getDamageConfig({isCritical:false,attackMode:options.attackMode,ammunition:ammo}).rolls?.length) return [];
     const rolls = await activity.rollDamage({_yaHordeResolvedDamage:true,isCritical:false,attackMode:options.attackMode,ammunition:ammo},
-      {configure:false}, {rollMode:options.rollMode, data:{speaker:ChatMessage.getSpeaker({actor}),flavor:activity.item.name,
+      {configure:false}, {...(collect?{create:false}:{}),rollMode:options.rollMode, data:{speaker:ChatMessage.getSpeaker({actor}),flavor:activity.item.name,
         flags:{[ID]:{job:job.id,target:job.target,hit}}}});
     if (!rolls?.length) throw new Error(t('damageCanceled'));
+    return rolls;
   } else {
     const roll = await new CONFIG.Dice.DamageRoll(options.damage,actor.getRollData(),{isCritical:false}).evaluate();
-    await roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor:esc(job.name),
+    if(!collect)await roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor:esc(job.name),
       flags:{[ID]:{job:job.id,target:job.target,hit}}},{rollMode:options.rollMode});
+    return [roll];
   }
 }
 async function consumeAmmunition(activity, actor, options, attempts) {
@@ -341,6 +345,8 @@ export async function resolve({doc,actor,activity,options}) {
       profiles:plan.profiles,currentProfileId:profile.id,
       target:target.uuid,name:activity?.item.name ?? options.attackName ?? actor.name, lane:plan.lane}));
     const totalHits = jobs.reduce((sum,j) => sum+j.hits,0);
+    const combined=options.combineDamage??(game.settings.get(ID,'combineDamage')===true);
+    if(combined&&jobs.some(job=>job.profiles.some(profile=>profile.rolls.length))&&!packetAvailable())throw Error(t('damagePacketUnavailable'));
     if (options.forceHit) for (const bucket of Object.values(state.buckets)) {
       if (bucket.group===options.group && bucket.target===target.uuid) {bucket.total=0;bucket.candidate=null;bucket.pendingHits=0;}
     }
@@ -368,13 +374,19 @@ export async function resolve({doc,actor,activity,options}) {
       forceButton=`<button type="button" data-ya-horde-force="${esc(action)}">${esc(t('forceHit'))}</button>`;
     }
     const message = await card(actor,resultText+forceButton);
-    let completed = 0;
+    let completed = 0,packetAttempted=false;const collected=[];
     try {
       for (const job of jobs) for (let hit=0; hit<job.hits; hit++) {
-        await damage(activity,actor,options,job,hit); completed++;
+        const rolls=await damage(activity,actor,options,job,hit,combined);
+        if(combined)collected.push(...rolls);completed++;
       }
+      if(combined&&collected.length){packetAttempted=true;await postDamagePacket(collected,{actor,activity,options,target:target.uuid});}
     } catch (error) {
-      await message.update({content:`<div class="ya-horde-card">${resultText}<p>${esc(t('partial',{completed,total:totalHits}))}</p></div>`});
+      if(combined&&collected.length&&!packetAttempted){
+        packetAttempted=true;
+        try{await postDamagePacket(collected,{actor,activity,options,target:target.uuid,partial:true});}catch(packetError){console.error(`${ID} | Partial damage packet`,packetError);}
+      }
+      await message.update({...(combined?{[`flags.${ID}.collectedDamage`]:{rolls:collected.map(roll=>roll.toJSON()),completed,total:totalHits}}:{}),content:`<div class="ya-horde-card">${resultText}<p>${esc(t(combined?'combinedPartial':'partial',{completed,total:totalHits,totalDamage:collected.reduce((sum,roll)=>sum+(Number.isFinite(roll.total)?roll.total:0),0)}))}</p></div>`});
       throw error;
     }
     Hooks.callAll(`${ID}.resolved`,{actor,activity,target,plans,hits:totalHits});
@@ -597,6 +609,7 @@ Hooks.once('init',() => {
   game.settings.register(ID,'splitInitiative',{name:'HORDE.splitInitiative',hint:'HORDE.splitInitiativeHint',scope:'world',config:false,type:String,choices:{shared:'HORDE.splitInitiativeShared',reroll:'HORDE.splitInitiativeReroll'},default:'shared'});
   game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:false,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
   for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:false,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
+  game.settings.register(ID,'combineDamage',{name:'HORDE.combineDamage',hint:'HORDE.combineDamageHint',scope:'world',config:true,type:Boolean,default:false});
   game.settings.register(ID,'combatSummary',{name:'HORDE.combatSummary',hint:'HORDE.combatSummaryHint',scope:'world',config:true,type:Boolean,default:true});
   game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
 });
