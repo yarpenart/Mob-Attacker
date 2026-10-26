@@ -9,7 +9,7 @@ export function mergedInitiative(values,mode='median') {
   if(mode==='highest')return rolled.at(-1);
   if(mode==='lowest')return rolled[0];
   const middle=Math.floor(rolled.length/2);
-  return rolled.length%2 ? rolled[middle] : (rolled[middle-1]+rolled[middle])/2;
+  return rolled[middle];
 }
 export function mergePlan(tokens,preferred) {
   const docs=[...new Map(tokens.map(t=>t.document ?? t).map(d=>[d.uuid,d])).values()];
