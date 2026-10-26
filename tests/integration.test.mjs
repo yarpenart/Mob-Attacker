@@ -397,3 +397,12 @@ test('simultaneous clicks on one sheet consume only one initiative attack',async
  assert.equal(opened.buttons.find(b=>b.action==='split').disabled,true);
  } finally {foundry.applications=previous;}
  });
+test('Split/Merge is available for selected single NPCs in the sheet menu and Token toolbar',async()=>{
+ const previous=foundry.applications;let opened;
+ foundry.applications={api:{DialogV2:{wait:async options=>{opened=options;return null;}}}};
+ try {
+ const a=initiativeGoblin(1),b=initiativeGoblin(2);canvas.tokens.controlled=[{document:a.token},{document:b.token}];
+ await hordeMenu(a.token,a.actor);assert.equal(opened.buttons.find(b=>b.action==='split').disabled,false);
+ const controls={tokens:{tools:{}}};sceneControls(controls);assert.ok(controls.tokens.tools.yaHordeSplitMerge);assert.equal(controls.tokens.tools.yaHordeSplitMerge.button,true);
+ } finally {foundry.applications=previous;}
+});
