@@ -21,12 +21,25 @@ export function hordeSize(count,base='med',thresholds=sizeThresholds(base)) {
   for(const [size,min] of Object.entries(rules))if(count>=min)index=Math.max(index,rank[size]);
   return {size:['tiny','sm','med','lg','huge','grg'][index],width:[0.5,1,1,2,3,4][index]};
 }
+export function creatureName(doc) {
+  return String(doc.actor?.name || doc.name || 'NPC').replace(/(?:\s*\(Horde\))+\s*$/i,'').trim();
+}
+export async function syncHordeName(doc,count,population=doc?.getFlag(ID,'population')) {
+  if(!doc?.actor)return;
+  const base=population?.baseName || creatureName(doc);
+  const name=count>1 ? `${base} (Horde)` : population?.soloName || base;
+  if(doc.name!==name)await doc.update({name});
+  for(const combat of globalThis.game?.combats?.values?.() ?? (globalThis.game?.combat ? [game.combat] : [])) {
+    const updates=Array.from(combat.combatants?.values?.() ?? []).filter(c=>c.tokenId===doc.id && (!c.sceneId || c.sceneId===doc.parent?.id) && c.name!==name).map(c=>({_id:c.id,name}));
+    if(updates.length)await combat.updateEmbeddedDocuments('Combatant',updates);
+  }
+}
 export async function syncPopulation(doc,options={}) {
   if (!doc?.actor || doc.documentName==='Actor') return;
   let actor=doc.actor;
   if (!actor.system?.attributes?.hp) return;
   const config=options.config ?? doc.getFlag(ID,'horde') ?? actor.getFlag(ID,'horde') ?? {};
-  let population=doc.getFlag(ID,'population');
+  let population=foundry.utils.deepClone(doc.getFlag(ID,'population'));
   if (!config.enabled && !population) return;
   if (doc.actorLink) {
     // A synthetic actor gives this token its own HP and size.
@@ -38,6 +51,7 @@ export async function syncPopulation(doc,options={}) {
     const remaining=hp.value>0 ? ((hp.value-1)%population.baseHP)+1 : 0;
     await actor.update({'system.attributes.hp.max':population.baseHP,'system.attributes.hp.value':remaining,
       'system.traits.size':population.baseSize},{yaHordePopulation:true});
+    await syncHordeName(doc,1,population);
     await doc.update({width:population.width,height:population.height,[`flags.${ID}.horde`]:{...config,count:1},
       [`flags.${ID}.-=population`]:null});
     return;
@@ -50,6 +64,8 @@ export async function syncPopulation(doc,options={}) {
     population={baseHP,baseSize:actor.system.traits.size,width:doc.width ?? 1,height:doc.height ?? 1,
       initial:requested,current:requested};
   }
+  population.baseName ??= creatureName(doc);
+  population.soloName ??= String(doc.name || population.baseName).replace(/(?:\s*\(Horde\))+\s*$/i,'').trim();
   let currentHP=Number(hp.value);
   if (resize) {
     population.initial=requested;
@@ -70,6 +86,7 @@ export async function syncPopulation(doc,options={}) {
     await doc.update({width:shape.width,height:shape.width,[`flags.${ID}.horde`]:{...config,count:population.current},
       [`flags.${ID}.population`]:population});
   }
+  await syncHordeName(doc,population.current,population);
   return population;
 }
 export async function populationActorUpdated(actor,changes,options={}) {

@@ -1,5 +1,5 @@
 import {integer} from './logic.mjs';
-import {ID,syncPopulation,hordeSize} from './population.mjs';
+import {ID,syncPopulation,hordeSize,syncHordeName} from './population.mjs';
 /** Bounded integer partitions preserve the total in both modes. */
 export function distributeHP(total,count,max,mode='equal',random=Math.random) {
   integer(count,1,200,'count');integer(max,1,Number.MAX_SAFE_INTEGER,'max');
@@ -41,9 +41,9 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
   const provenance={source:doc.uuid,initial:pop.initial,count,totalHP:hp.reduce((a,b)=>a+b,0),mode};
   const make=(i)=>{
     const data=foundry.utils.deepClone(template);delete data._id;delete data._stats;
-    data.actorLink=false;data.name=`${template.name} ${i+1}`;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
+    data.actorLink=false;data.name=`${pop.baseName} ${i+1}`;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
     data.flags??={};data.flags[ID]={...data.flags[ID],horde:{...config,count:1},
-      population:{...pop,initial:1,current:1},splitOrigin:provenance};delete data.flags[ID].splitLock;
+      population:{...pop,initial:1,current:1,soloName:data.name},splitOrigin:provenance};delete data.flags[ID].splitLock;
     data.delta={...(data.delta ?? {}),name:actorData.name,system:foundry.utils.deepClone(actorData.system),
       items:foundry.utils.deepClone(actorData.items ?? []),effects:foundry.utils.deepClone(actorData.effects ?? []),flags:foundry.utils.deepClone(actorData.flags ?? {})};
     data.delta.system.attributes.hp={...data.delta.system.attributes.hp,max:pop.baseHP,value:hp[i],temp:i===0?(actorData.system.attributes.hp.temp??0):0};
@@ -75,6 +75,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     await doc.update({name:first.name,x:first.x,y:first.y,width:first.width,height:first.height,
       [`flags.${ID}.horde`]:first.flags[ID].horde,[`flags.${ID}.population`]:first.flags[ID].population,
       [`flags.${ID}.splitOrigin`]:provenance});
+    await syncHordeName(doc,1,first.flags[ID].population);
     // Equal initiative sorting can reorder entries; preserve the active combatant.
     if(active&&game.combat?.started){const turn=game.combat.turns.findIndex(c=>c.id===active);if(turn>=0&&turn!==game.combat.turn)await game.combat.update({turn});}
     return {tokens:[doc,...newTokens],hp};

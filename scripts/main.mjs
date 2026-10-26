@@ -1,6 +1,6 @@
 import {splitToken} from './split.mjs';
 import {installSaves} from './saves.mjs';
-import {syncPopulation,populationActorUpdated,SIZE_DEFAULTS,sizeThresholds} from './population.mjs';
+import {syncPopulation,populationActorUpdated,SIZE_DEFAULTS,sizeThresholds,syncHordeName} from './population.mjs';
 import { TABLE, integer, planAttack, nextLane, parseCommand, parseMarkedRoll, serialQueue, damageAssignments, reserveTurn, bucketKey, resolveMob } from './logic.mjs';
 export const ID = 'yarpenart-mob-attacker';
 const enqueue = serialQueue();
@@ -565,6 +565,10 @@ Hooks.once('ready',async () => {
   game.modules.get(ID).api = {configure:() => {const s=selectedSource();return configure(s.doc,s.actor);},
     save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,split:()=>splitHorde(selectedSource().doc),attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
   Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
+  Hooks.on('createCombatant',guard(c=>authority() && c.token?.getFlag(ID,'population') && syncHordeName(c.token,settings(c.token).count)));
+  if(authority())for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {
+    const population=token.getFlag(ID,'population');if(population)await syncHordeName(token,settings(token).enabled ? population.current : 1,population);
+  }
   Hooks.on('renderCombatTracker',renderTracker);
   Hooks.on('renderActorSheetV2',renderSheet);
   Hooks.on('renderActorSheet',renderSheet);
