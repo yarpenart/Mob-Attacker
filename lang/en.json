@@ -119,9 +119,9 @@
     "initiativeMedian": "Median",
     "initiativeLowest": "Lowest",
     "splitInitiative": "Split Horde: initiative",
-    "splitInitiativeHint": "Keep the Horde’s initiative for all members, or roll fresh native initiative for every member, including the retained original token. Applies to existing combat entries.",
+    "splitInitiativeHint": "Keep shared Horde initiative, or use individual initiatives. During this combat, split restores each member’s saved initiative and rolls only members without a saved result. Memory is cleared when combat ends.",
     "splitInitiativeShared": "Keep shared initiative",
-    "splitInitiativeReroll": "Roll new initiative for each creature",
+    "splitInitiativeReroll": "Individual initiatives: restore saved or roll missing",
     "sizesSettings": "Population size rules",
     "sizesSettingsHint": "Configure growth thresholds for base Small, Medium and Large creatures in one window.",
     "splitMergeSettings": "HP, split and merge rules",
@@ -154,6 +154,10 @@
     "hordeHPFormula": "HP roll formula (blank = NPC formula)",
     "hordeHPHint": "Default: the HP value written in the base NPC statblock (normally the average of its HP formula) × population. This does not maximize dice. Rolled mode evaluates the NPC HP formula separately for each member and sums the results; split members keep those maxima. Applies when forming/reconfiguring a Horde. Existing wounds are retained; merging never rerolls HP.",
     "rerollHordeHP": "Reroll member maximum HP now",
-    "memberMaxima": "Stored member maximum HP: {values}"
+    "memberMaxima": "Stored member maximum HP: {values}",
+    "combatSummary": "Private Horde combat summary",
+    "combatSummaryHint": "After combat ends, send all GMs the number of unique Horde creatures and how many died. Splitting and merging do not count them twice.",
+    "combatSummaryTitle": "Hordes — combat summary",
+    "combatSummaryText": "Total creatures: {total}. Killed: {killed}. Survived: {survived}."
   }
 }

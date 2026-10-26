@@ -119,9 +119,9 @@
     "initiativeMedian": "Mediana",
     "initiativeLowest": "Najniższa",
     "splitInitiative": "Rozdzielanie hordy: inicjatywa",
-    "splitInitiativeHint": "Zachowaj inicjatywę hordy dla wszystkich istot albo rzuć nową inicjatywę każdej z nich, także istocie pozostającej w oryginalnym tokenie. Dotyczy istniejących wpisów w walce.",
+    "splitInitiativeHint": "Zachowaj wspólną inicjatywę hordy albo używaj osobnych inicjatyw. W tej walce split przywraca zapisany wynik każdego moba i rzuca tylko brakujące wyniki. Pamięć jest czyszczona po zakończeniu walki.",
     "splitInitiativeShared": "Zachowaj wspólną inicjatywę",
-    "splitInitiativeReroll": "Rzuć nową inicjatywę każdej istocie",
+    "splitInitiativeReroll": "Osobne inicjatywy: przywróć zapisane, rzuć brakujące",
     "sizesSettings": "Zasady rozmiarów hordy",
     "sizesSettingsHint": "Ustal progi wzrostu dla bazowo Small, Medium i Large w jednym oknie.",
     "splitMergeSettings": "HP, rozdzielanie i scalanie",
@@ -154,6 +154,10 @@
     "hordeHPFormula": "Formuła losowania HP (puste = formuła NPC)",
     "hordeHPHint": "Domyślnie: HP zapisane w bazowym statblocku NPC (zwykle średnia z formuły HP) × liczebność. Nie jest to maksymalny wynik na kościach. Tryb losowy rzuca formułę HP osobno dla każdej istoty i sumuje wyniki; split zachowuje te maksima. Dotyczy tworzenia i zmiany liczebności hordy. Otrzymane obrażenia pozostają; merge nie losuje HP ponownie.",
     "rerollHordeHP": "Wylosuj ponownie maksymalne HP istot teraz",
-    "memberMaxima": "Zapisane maksymalne HP istot: {values}"
+    "memberMaxima": "Zapisane maksymalne HP istot: {values}",
+    "combatSummary": "Prywatne podsumowanie hord po walce",
+    "combatSummaryHint": "Po zakończeniu walki wyślij GM-om liczbę unikalnych istot w hordach oraz zabitych. Split i merge nie liczą ich ponownie.",
+    "combatSummaryTitle": "Hordy — podsumowanie walki",
+    "combatSummaryText": "Łącznie istot: {total}. Zabitych: {killed}. Ocalałych: {survived}."
   }
 }
