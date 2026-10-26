@@ -1,3 +1,4 @@
+import {restoreInitiatives,rememberInitiatives} from './combat-memory.mjs';
 import {splitNames} from './naming.mjs';
 import {integer} from './logic.mjs';
 import {ID,syncPopulation,hordeSize,syncHordeName} from './population.mjs';
@@ -49,6 +50,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
   if(doc.getFlag(ID,'splitLock'))throw Error('This Horde is already being split');
   const scene=doc.parent,count=pop.current;
   const maxima=pop.maxima?pop.maxima.filter((value,i)=>pop.members[i]>0):Array(count).fill(pop.baseHP);
+  const battle=doc.getFlag(ID,'battle'),livingIds=battle?.ids.filter((id,i)=>!pop.members||pop.members[i]>0);
   const hp=distributeHP(doc.actor.system.attributes.hp.value,count,maxima,mode,random);
   const shape=hordeSize(1,pop.baseSize),positions=splitPositions(doc,count,shape.width,scene);
   const oldNaming=foundry.utils.deepClone(doc.getFlag(ID,'naming'));
@@ -60,6 +62,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     data.actorLink=false;data.name=generated[i].name;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
     data.flags??={};data.flags[ID]={...data.flags[ID],horde:{...config,count:1},
       population:{...pop,baseHP:maxima[i],initial:1,current:1,soloName:data.name},naming:generated[i].meta,splitOrigin:provenance};delete data.flags[ID].splitLock;delete data.flags[ID].mergeLock;delete data.flags[ID].mergeOrigin;
+    if(battle)data.flags[ID].battle={...battle,ids:[livingIds[i]]};
     data.flags[ID].population.maxima=[maxima[i]];
     data.flags[ID].population.members=[hp[i]];
     data.delta={...(data.delta ?? {}),name:actorData.name,system:foundry.utils.deepClone(actorData.system),
@@ -98,10 +101,11 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
       'system.traits.size':shape.size},{yaHordePopulation:true});
     await doc.update({name:first.name,x:first.x,y:first.y,width:first.width,height:first.height,
       [`flags.${ID}.horde`]:first.flags[ID].horde,[`flags.${ID}.population`]:first.flags[ID].population,
-      [`flags.${ID}.splitOrigin`]:provenance,[`flags.${ID}.naming`]:first.flags[ID].naming,[`flags.${ID}.-=mergeOrigin`]:null,[`flags.${ID}.naming.-=reservedNumbers`]:null});
+      ...(battle?{[`flags.${ID}.battle`]:first.flags[ID].battle}:{}),[`flags.${ID}.splitOrigin`]:provenance,[`flags.${ID}.naming`]:first.flags[ID].naming,[`flags.${ID}.-=mergeOrigin`]:null,[`flags.${ID}.naming.-=reservedNumbers`]:null});
     await syncHordeName(doc,1,first.flags[ID].population);
-    if(initiativeMode==='reroll')for(const {combat,ids,original} of newCombatants) {
-      await combat.rollInitiative([original,...ids],{updateTurn:true});
+    for(const {combat} of newCombatants){
+      if(initiativeMode==='reroll')await restoreInitiatives(combat,[doc,...newTokens]);
+      else await rememberInitiatives([doc,...newTokens],combat);
     }
     // Equal initiative sorting can reorder entries; preserve the active combatant.
     if(active&&game.combat?.started){const turn=game.combat.turns.findIndex(c=>c.id===active);if(turn>=0&&turn!==game.combat.turn)await game.combat.update({turn});}
@@ -111,7 +115,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     try {
       await doc.actor.update({'system.attributes.hp.max':actorData.system.attributes.hp.max,'system.attributes.hp.value':actorData.system.attributes.hp.value,'system.traits.size':actorData.system.traits.size},{yaHordePopulation:true});
       await doc.update({name:template.name,x:template.x,y:template.y,width:template.width,height:template.height,
-        [`flags.${ID}.horde`]:config,[`flags.${ID}.population`]:pop,...(template.flags?.[ID]?.splitOrigin ? {[`flags.${ID}.splitOrigin`]:template.flags[ID].splitOrigin} : {[`flags.${ID}.-=splitOrigin`]:null})});
+        [`flags.${ID}.horde`]:config,[`flags.${ID}.population`]:pop,...(battle?{[`flags.${ID}.battle`]:battle}:{}),...(template.flags?.[ID]?.splitOrigin ? {[`flags.${ID}.splitOrigin`]:template.flags[ID].splitOrigin} : {[`flags.${ID}.-=splitOrigin`]:null})});
     } catch(restoreError) {retainLock=true;throw new AggregateError([error,restoreError],'Split interrupted; copies retained. Check the original Horde before retrying.');}
     await doc.unsetFlag(ID,'naming');if(oldNaming)await doc.setFlag(ID,'naming',oldNaming);
     for(const {combat,ids} of newCombatants)await combat.deleteEmbeddedDocuments('Combatant',ids);

@@ -1,3 +1,4 @@
+import {memoryScope,ensureCombat} from './combat-memory.mjs';
 import {attackersNeeded,integer,serialQueue} from './logic.mjs';
 import {syncPopulation,ID} from './population.mjs';
 const queue=serialQueue();
@@ -57,20 +58,21 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
   }
   async function resolveSave({doc,actor,options}) {
     return queue(async()=>{
-      requireAuthority();await syncPopulation(doc);actor=doc.actor ?? actor;
+      requireAuthority();await ensureCombat(game.combat);await syncPopulation(doc);actor=doc.actor ?? actor;
       const s=settings(doc,actor);if (!s.enabled || !s.count) throw Error(t('emptyHorde'));
       const roll=await new Roll(options.bonus,actor.getRollData()).evaluate();
       if (!Number.isFinite(roll.total)) throw Error(t('bonusInvalid'));
       const source=options.source ? game.messages?.get(options.source) : null;
-      const prior=source ? game.messages.contents.filter(message=>{const d=message.getFlag(ID,'save');return d?.source===source.id && d.target===doc.uuid && d.ability===options.ability && d.status!=='superseded';}) : [];
+      const scope=memoryScope();
+      const prior=source ? game.messages.contents.filter(message=>{const d=message.getFlag(ID,'save');return d?.scope===scope && d.source===source.id && d.target===doc.uuid && d.ability===options.ability && d.status!=='superseded';}) : [];
       if (prior.some(message=>['applied','applying'].includes(message.getFlag(ID,'save').status))) throw Error(t('saveAlreadyApplied'));
       if (prior.length && options.forced==null) throw Error(t('saveDuplicate'));
-      const owner=source ?? (game.combat?.started ? game.combat : canvas.scene);
+      const owner=game.combat?.started ? game.combat : canvas.scene;
       const entries=owner.getFlag(ID,'saveLedger') ?? [];
-      const key=JSON.stringify([s.group,options.ability,options.dc,roll.total]);
+      const key=JSON.stringify([scope,source?.id??null,s.group,options.ability,options.dc,roll.total]);
       const previous=entries.find(([k])=>k===key)?.[1] ?? 0;
       const result=saveCount(options.dc,roll.total,s.count,options.forced ?? null,previous);
-      const data={...result,dc:options.dc,bonus:roll.total,ability:options.ability,target:doc.uuid,
+      const data={...result,scope,dc:options.dc,bonus:roll.total,ability:options.ability,target:doc.uuid,
         source:options.source ?? null,activity:options.activity ?? null,onSave:options.onSave ?? 'half',status:'pending',
         hp:actor.system.attributes.hp.value,initial:doc.getFlag(ID,'population')?.initial ?? s.count};
       const text=`<strong>${esc(actor.name)} — ${esc(t('hordeSave'))}</strong><p>${esc(t('saveSummary',{
@@ -85,13 +87,14 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
       for (const old of prior) await old.update({[`flags.${ID}.save.status`]:'superseded'});
       await owner.setFlag(ID,'saveLedger',[...entries.filter(([k])=>k!==key),[key,after]]);
       const message=await card(actor,text);await message.setFlag(ID,'save',{...data,text});
-      parts ??= source?.getFlag(ID,'saveDamage')?.parts;
+      const storedDamage=source?.getFlag(ID,'saveDamage');
+      parts ??= storedDamage?.scope===scope ? storedDamage.parts : undefined;
       if (parts) await attachDamage(message,parts);
       return {message,result};
     });
   }
   async function attachDamage(message,parts) {
-    const data=message.getFlag(ID,'save');if (!data || data.status!=='pending' || data.parts) return;
+    const data=message.getFlag(ID,'save');if (!data || data.scope!==memoryScope() || data.status!=='pending' || data.parts) return;
     const doc=await fromUuid(data.target);if (!doc?.actor) return;
     const damage=saveDamage(doc.actor,parts,data,data.onSave);
     await message.update({[`flags.${ID}.save`]:{...data,parts,damage},content:`<div class="ya-horde-card">${data.text}<p>${esc(t('saveDamageSummary',damage))}</p><button type="button" data-ya-horde-save-apply>${esc(t('applySaveDamage'))}</button></div>`});
@@ -99,7 +102,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
   async function apply(message) {
     return queue(async()=>{
       requireAuthority();const data=message.getFlag(ID,'save');
-      if (!data?.parts || data.status!=='pending') throw Error(t('saveAlreadyApplied'));
+      if (data?.scope!==memoryScope() || !data?.parts || data.status!=='pending') throw Error(t('saveAlreadyApplied'));
       const doc=await fromUuid(data.target);await syncPopulation(doc);const actor=doc?.actor;
       if (!actor || settings(doc,actor).count!==data.count || actor.system.attributes.hp.value!==data.hp) throw Error(t('saveStale'));
       const damage=saveDamage(actor,data.parts,data,data.onSave);
@@ -119,15 +122,16 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
   async function interceptSaveDamage(wrapped,config={},...args) {
     const rolls=await wrapped(config,...args);
     if (!rolls?.length || !authority()) return rolls;
+    await ensureCombat(game.combat);
     const origin=sourceMessage(config.event);
     const parts=rolls.map(r=>({value:r.total,type:r.options?.type,properties:new Set(r.options?.properties ?? [])}));
     // Store Sets as arrays; reconstruct when the system calculates damage.
     for (const part of parts) part.properties=Array.from(part.properties);
     await queue(async()=>{
-      if (origin) await origin.setFlag(ID,'saveDamage',{parts});
+      if (origin) await origin.setFlag(ID,'saveDamage',{parts,scope:memoryScope()});
       for (const message of game.messages.contents) {
         const data=message.getFlag(ID,'save');
-        if (data?.status==='pending' && !data.parts && data.activity===this.uuid && origin && data.source===origin.id) await attachDamage(message,parts);
+        if (data?.scope===memoryScope() && data.status==='pending' && !data.parts && data.activity===this.uuid && origin && data.source===origin.id) await attachDamage(message,parts);
       }
     });
     return rolls;
@@ -135,7 +139,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
   function render(message,html) {
     const button=root(html)?.querySelector('[data-ya-horde-save-apply]');if (!button) return;
     if (!game.user.isGM) {button.remove();return;}
-    button.disabled=message.getFlag(ID,'save')?.status!=='pending';
+    button.disabled=message.getFlag(ID,'save')?.status!=='pending'||message.getFlag(ID,'save')?.scope!==memoryScope();
     button.addEventListener('click',event=>{event.preventDefault();button.disabled=true;guard(()=>apply(message))();});
   }
   function sheet(app,html) {

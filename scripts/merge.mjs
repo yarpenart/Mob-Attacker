@@ -1,3 +1,4 @@
+import {rememberInitiatives} from './combat-memory.mjs';
 import {assignMergedName} from './naming.mjs';
 import {ID,hordeSize,creatureName} from './population.mjs';
 const clone=value=>foundry.utils.deepClone(value);
@@ -44,6 +45,9 @@ export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},init
   const records=combats().map(combat=>({combat,rows:combatants(combat,docs),ledger:clone(combat.getFlag(ID,'ledger')),active:combat.combatant?.id})).filter(r=>r.rows.length);
   initiativeMode??=game.settings.get(ID,'mergeInitiative')??'median';
   for(const record of records){record.backups=record.rows.map(c=>clone(c.toObject()));record.initiative=mergedInitiative(record.rows.map(c=>c.initiative),initiativeMode);}
+  for(const {combat} of records)await rememberInitiatives(docs,combat);
+  const battle=docs.map(doc=>doc.getFlag(ID,'battle')),common=battle[0];
+  const mergedBattle=common&&battle.every(b=>b?.combat===common.combat&&b.session===common.session)?{...common,ids:battle.flatMap((b,i)=>b.ids.filter((id,j)=>id&&(!members[i].pop?.members||members[i].pop.members[j]>0)))}:null;
   const baseName=source.pop?.baseName||anchor.baseActor?.name||creatureName(anchor);
   const group=source.config.group||baseName;
   const population={baseHP:Number(anchor.baseActor?.system.attributes.hp.max??source.pop?.baseHP??source.max),baseSize:source.size,baseName,soloName:source.pop?.soloName||anchor.name,
@@ -54,7 +58,7 @@ export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},init
   let deleting=false;
   try {
     await anchor.update({actorLink:false,name,width:shape.width,height:shape.width,
-      delta:{system},[`flags.${ID}.horde`]:{...source.config,enabled:true,count,attackLimit:source.attackLimit,group},
+      delta:{system},...(mergedBattle?{[`flags.${ID}.battle`]:mergedBattle}:{}),[`flags.${ID}.horde`]:{...source.config,enabled:true,count,attackLimit:source.attackLimit,group},
       [`flags.${ID}.population`]:population,[`flags.${ID}.mergeLock`]:true,
       [`flags.${ID}.mergeOrigin`]:{members:docs.map((d,i)=>({uuid:d.uuid,name:d.name,hp:members[i].hp,max:members[i].max})),
         // Keep recoverable snapshots before replacing the source tokens.

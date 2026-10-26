@@ -1,3 +1,4 @@
+import {trackPopulation} from './combat-memory.mjs';
 import {hordeLabel} from './naming.mjs';
 /** Population is token-local; never scale a shared world actor. */
 export const ID='yarpenart-mob-attacker';
@@ -39,7 +40,7 @@ export async function syncHordeName(doc,count,population=doc?.getFlag(ID,'popula
 export function updateMembers(members,hp,baseHP) {
   const limits=Array.isArray(baseHP)?baseHP:members.map(()=>baseHP);
   const result=[...members];let delta=hp-result.reduce((a,b)=>a+b,0);
-  if(delta<0)for(let i=0;i<result.length&&delta<0;i++){const loss=Math.min(result[i],-delta);result[i]-=loss;delta+=loss;}
+  if(delta<0)for(const i of result.map((_,i)=>i).sort((a,b)=>result[a]-result[b]||a-b)){if(delta>=0)break;const loss=Math.min(result[i],-delta);result[i]-=loss;delta+=loss;}
   if(delta>0)for(const alive of [true,false])for(let i=0;i<result.length&&delta>0;i++) {
     if((result[i]>0)!==alive)continue;const gain=Math.min(limits[i]-result[i],delta);result[i]+=gain;delta-=gain;
   }
@@ -102,6 +103,7 @@ export async function syncPopulation(doc,options={}) {
       population.members=updateMembers(population.maxima,currentHP,population.maxima);
     } else currentHP=Math.max(0,population.baseHP*requested-damage);
   }
+  if(!Array.isArray(population.members))population.members=updateMembers(Array(population.initial).fill(population.baseHP),currentHP,population.baseHP);
   if(Array.isArray(population.members)) {population.members=updateMembers(population.members,currentHP,population.maxima??population.baseHP);population.current=population.members.filter(hp=>hp>0).length;}
   else population.current=livingCount(currentHP,population.baseHP,population.initial);
   const shape=hordeSize(population.current,population.baseSize);
@@ -117,6 +119,7 @@ export async function syncPopulation(doc,options={}) {
       [`flags.${ID}.population`]:population});
   }
   await syncHordeName(doc,population.current,population);
+  await trackPopulation(doc,population);
   return population;
 }
 export async function populationActorUpdated(actor,changes,options={}) {

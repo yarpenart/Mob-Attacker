@@ -1,3 +1,4 @@
+import {memoryScope,ensureCombat,finishCombat,trackInitiative} from './combat-memory.mjs';
 import {migrateSceneNames} from './naming.mjs';
 import {settingsUI} from './settings.mjs';
 import {mergeTokens} from './merge.mjs';
@@ -56,7 +57,7 @@ export function attackContext(activity, fallbackActor=activity?.actor) {
     guard:{combat:combat.uuid,combatant:current.uuid ?? current.id,round:combat.round}};
 }
 function ledgerOwner() { return game.combat?.started ? game.combat : canvas.scene; }
-function scopeFor(owner) { return owner.uuid; }
+function scopeFor(owner) { return owner.documentName==='Combat'&&owner.getFlag(ID,'session') ? `${owner.uuid}:${owner.getFlag(ID,'session').id}` : owner.uuid; }
 function ledger(owner) {
   const state = owner.getFlag(ID, 'ledger');
   if ([2,3].includes(state?.schema) && state.scope === scopeFor(owner) && Array.isArray(state.entries)) {
@@ -338,7 +339,7 @@ export async function resolve({doc,actor,activity,options}) {
     let forceButton='';
     if (!totalHits) {
       const action=foundry.utils.randomID();
-      forceActions.set(action,{doc,actor,activity,options:{...options,attacks:1,forceHit:true,remember:false,turnGuard:context?.guard}});
+      forceActions.set(action,{scope:memoryScope(),doc,actor,activity,options:{...options,attacks:1,forceHit:true,remember:false,turnGuard:context?.guard}});
       if (forceActions.size>200) forceActions.delete(forceActions.keys().next().value);
       forceButton=`<button type="button" data-ya-horde-force="${esc(action)}">${esc(t('forceHit'))}</button>`;
     }
@@ -411,9 +412,9 @@ export function renderForceButtons(message,html) {
   const element=root(html);if (!element) return;
   for (const button of element.querySelectorAll('[data-ya-horde-force]')) {
     const action=button.dataset.yaHordeForce;
-    if (!authority() || !forceActions.has(action)) {button.disabled=true;continue;}
+    if (!authority() || !forceActions.has(action)||forceActions.get(action).scope!==memoryScope()) {button.disabled=true;continue;}
     button.addEventListener('click',event=>{event.preventDefault();button.disabled=true;
-      guard(async()=>{await resolve(forceActions.get(action));forceActions.delete(action);})();});
+      guard(async()=>{const saved=forceActions.get(action);if(!saved||saved.scope!==memoryScope())throw Error(t('roundChanged'));await resolve(saved);forceActions.delete(action);})();});
   }
 }
 async function resetCounters() {
@@ -572,6 +573,7 @@ Hooks.once('init',() => {
   game.settings.register(ID,'splitInitiative',{name:'HORDE.splitInitiative',hint:'HORDE.splitInitiativeHint',scope:'world',config:false,type:String,choices:{shared:'HORDE.splitInitiativeShared',reroll:'HORDE.splitInitiativeReroll'},default:'shared'});
   game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:false,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
   for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:false,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
+  game.settings.register(ID,'combatSummary',{name:'HORDE.combatSummary',hint:'HORDE.combatSummaryHint',scope:'world',config:true,type:Boolean,default:true});
   game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
 });
 Hooks.once('ready',async () => {
@@ -590,9 +592,20 @@ Hooks.once('ready',async () => {
     async function(wrapped,...args) {try {return await saves.interceptSaveDamage.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
   game.modules.get(ID).api = {configure:() => {const s=selectedSource();return configure(s.doc,s.actor);},
     save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,split:()=>splitHorde(selectedSource().doc),splitMerge:splitMergeHorde,mergeSelected:()=>splitMergeHorde(),attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
+  Hooks.on('updateCombatant',guard(row=>authority()&&trackInitiative(row)));
+  Hooks.on('updateCombat',guard(async(combat,changes)=>{
+    if(!authority()||!Object.hasOwn(changes,'round'))return;
+    if(!combat.started)return finishCombat(combat,{t,esc});
+    await ensureCombat(combat);
+    for(const row of combat.combatants.values())if(row.token?.getFlag(ID,'horde')?.enabled)await syncPopulation(row.token);
+  }));
+  Hooks.on('deleteCombat',guard(combat=>authority()&&finishCombat(combat,{deleted:true,t,esc})));
   Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
   Hooks.on('createCombatant',guard(c=>authority() && c.token?.getFlag(ID,'population') && syncHordeName(c.token,settings(c.token).count)));
-  if(authority())await migrateSceneNames();
+  if(authority()){
+    await migrateSceneNames();
+    for(const combat of game.combats?.values?.()??[])if(combat.started){await ensureCombat(combat);for(const row of combat.combatants.values())if(row.token?.getFlag(ID,'horde')?.enabled)await syncPopulation(row.token);}
+  }
   if(authority())for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {
     const population=token.getFlag(ID,'population');if(population)await syncHordeName(token,settings(token).enabled ? population.current : 1,population);
   }
