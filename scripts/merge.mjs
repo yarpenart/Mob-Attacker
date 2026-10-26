@@ -2,6 +2,15 @@ import {ID,hordeSize,creatureName} from './population.mjs';
 const clone=value=>foundry.utils.deepClone(value);
 const combats=()=>Array.from(game.combats?.values?.() ?? (game.combat?[game.combat]:[]));
 const combatants=(combat,docs)=>Array.from(combat.combatants?.values?.() ?? []).filter(c=>docs.some(doc=>c.tokenId===doc.id&&(!c.sceneId||c.sceneId===doc.parent.id)));
+export function mergedInitiative(values,mode='median') {
+  if(!['highest','median','lowest'].includes(mode))throw Error('Invalid merged Horde initiative mode');
+  const rolled=values.filter(value=>typeof value==='number'&&Number.isFinite(value)).sort((a,b)=>a-b);
+  if(!rolled.length)return null;
+  if(mode==='highest')return rolled.at(-1);
+  if(mode==='lowest')return rolled[0];
+  const middle=Math.floor(rolled.length/2);
+  return rolled.length%2 ? rolled[middle] : (rolled[middle-1]+rolled[middle])/2;
+}
 export function mergePlan(tokens,preferred) {
   const docs=[...new Map(tokens.map(t=>t.document ?? t).map(d=>[d.uuid,d])).values()];
   if(docs.length<2||docs.length>200)throw Error('Select 2–200 individual NPC tokens to merge');
@@ -20,12 +29,13 @@ export function mergePlan(tokens,preferred) {
   if(members.some(m=>m.doc.actorId!==anchor.actorId||m.actor.name!==source.actor.name||m.max!==source.max||m.size!==source.size||(m.config.attackLimit??1)!==limit))throw Error('Merge creatures with the same actor, base size, maximum HP and attack limit');
   return {docs,anchor,members,source,count:members.length,hp:members.reduce((n,m)=>n+m.hp,0),max:source.max*members.length};
 }
-export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{}}={}) {
+export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{},initiativeMode}={}) {
   requireAuthority();const plan=mergePlan(tokens,preferred),{docs,anchor,members,source,count,hp,max}=plan;
   const scene=anchor.parent,removed=docs.filter(d=>d!==anchor),shape=hordeSize(count,source.size);
   const tokenBackups=docs.map(doc=>{const data=clone(doc.toObject());if(data.flags?.[ID])delete data.flags[ID].mergeOrigin;return data;});
   const records=combats().map(combat=>({combat,rows:combatants(combat,docs),ledger:clone(combat.getFlag(ID,'ledger')),active:combat.combatant?.id})).filter(r=>r.rows.length);
-  for(const record of records)record.backups=record.rows.map(c=>clone(c.toObject()));
+  initiativeMode??=game.settings.get(ID,'mergeInitiative')??'median';
+  for(const record of records){record.backups=record.rows.map(c=>clone(c.toObject()));record.initiative=mergedInitiative(record.rows.map(c=>c.initiative),initiativeMode);}
   const group=source.config.group||creatureName(anchor);
   const population={baseHP:source.max,baseSize:source.size,baseName:creatureName(anchor),soloName:source.pop?.soloName||anchor.name,
     width:source.pop?.width??anchor.width,height:source.pop?.height??anchor.height,initial:count,current:count,members:members.map(m=>m.hp)};
@@ -42,9 +52,9 @@ export async function mergeTokens(tokens,{preferred,requireAuthority=()=>{}}={})
     for(const record of records){
       const {combat,rows}=record;
       let keep=rows.find(c=>c.tokenId===anchor.id);
-      if(!keep){const data=clone(rows[0].toObject());delete data._id;delete data._stats;[keep]=await combat.createEmbeddedDocuments('Combatant',[{...data,tokenId:anchor.id,actorId:anchor.actorId,sceneId:scene.id,name}]);}
+      if(!keep){const data=clone(rows[0].toObject());delete data._id;delete data._stats;[keep]=await combat.createEmbeddedDocuments('Combatant',[{...data,tokenId:anchor.id,actorId:anchor.actorId,sceneId:scene.id,name,initiative:record.initiative}]);}
       record.keep=keep;
-      await combat.updateEmbeddedDocuments('Combatant',[{_id:keep.id,name}]);
+      await combat.updateEmbeddedDocuments('Combatant',[{_id:keep.id,name,initiative:record.initiative}]);
       const ledger=record.ledger;
       if(ledger?.turns){
         const ids=new Set(rows.map(c=>c.uuid??c.id)),slots=new Map();

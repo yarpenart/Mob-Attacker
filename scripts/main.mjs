@@ -561,6 +561,7 @@ export const saves=installSaves({t,esc,dialog,field,select,value,card,requireAut
 Hooks.once('init',() => {
   game.settings.register(ID,'language',{name:'HORDE.language',scope:'client',config:true,type:String,choices:{en:'English',pl:'Polski'},default:'en',onChange:loadLanguage});
   game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:false});
+  game.settings.register(ID,'mergeInitiative',{name:'HORDE.mergeInitiative',hint:'HORDE.mergeInitiativeHint',scope:'world',config:true,type:String,choices:{highest:'HORDE.initiativeHighest',median:'HORDE.initiativeMedian',lowest:'HORDE.initiativeLowest'},default:'median'});
   game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:true,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
   for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:true,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
   game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
