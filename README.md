@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.1
+# YarpenArt: Mob Attacker — 0.5.2
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,10 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.2
+
+Fixed stale split/merge flags blocking later operations with “A selected token is already being split or merged”. Active operations now acquire an in-memory guard for all selected tokens before any asynchronous work. Legacy boolean flags on completed operations are cleared automatically when retrying, including after a reload. Horde numbers are display labels, not ownership or lock keys: splitting Hordes 1 and 2, merging the former 2 as Horde 1, then merging the former 1 as Horde 2 is covered by a full token/HP regression test. A genuinely interrupted operation with both source tokens and a partial result still present retains its recovery snapshots and reports the specific condition rather than allowing duplicate creatures or HP.
 
 ## What changed in 0.5.1
 
