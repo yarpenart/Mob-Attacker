@@ -61,3 +61,7 @@ The initial five failure cases were reproduced before correction. Additional reg
 3. Make two eight-member Hordes with rolled HP. Split both, merge the former second group first, then the former first. Check names, HP sums, sizes and restored initiatives.
 4. Apply a spell save and its damage once. End the encounter and verify the private report; start another and ensure old cards/progress/initiatives cannot be reused.
 5. Check HUD/sheet/initiative controls and dialogs in both themes; test ordinary attacks from any other installed activity or automation modules.
+
+## 0.5.6 addendum — combined attack damage
+
+Optional combined damage uses native `game.dnd5e.dice.aggregateDamageRolls` with `respectProperties: true`, after each hit has rolled with `message.create: false`. One native `DamageRoll.toMessage` publishes the result. The contract was checked against the official dnd5e 5.3.x dice/activity source. Tests cover 30 members/15 independent hit results, different damage types and properties, multiple slots, mode override, misses, damage-free abilities, missing APIs, manual damage, frozen earlier profiles and interrupted rolls/posts. **152 tests pass**, including the packaged ZIP. Live Foundry/Forge and third-party automation integration remain unverified.

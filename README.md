@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.5
+# YarpenArt: Mob Attacker — 0.5.6
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,14 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.6
+
+Optional **Combine Horde damage into one card** rolls all successful hits independently, suppresses their individual chat messages, and posts one native D&D5e damage card for the current token’s resolution. Damage types and properties are retained using the system’s aggregation API; the native card can be used to apply the total. The setting defaults to off, and the Horde attack dialog has an override for the current resolution.
+
+A 30-member token scoring 15 hits therefore produces one damage card rather than 15. Multiple attack slots resolved together are included. Separate clicks/targets/turns produce separate packets; old chat cards are not edited after damage application. Applying a combined card treats it as **one damage packet**, so target reductions and resistance rounding apply to that packet. The GM-only rule/progress summary remains private.
+
+If rolling is interrupted, completed results are preserved on the private result card and a partial packet is attempted once. A failed message post is not automatically retried. The default separate-roll mode is retained.
 
 ## What changed in 0.5.5
 
