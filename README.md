@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.4.1
+# YarpenArt: Mob Attacker — 0.4.2
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -16,9 +16,13 @@ Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`,
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
 
+## What changed in 0.4.2
+
+**Split Horde: initiative** is a world setting with **Keep shared initiative** (default) and **Roll new initiative for each creature**. The second mode uses native Foundry/system initiative rolls for every split member, including the retained original token. The active combatant and spent attack slots are preserved. Splitting outside combat does not create combat entries or start a fight.
+
 ## What changed in 0.4.1
 
-**Merged Horde initiative** is a world setting with **Highest**, **Median** (default), and **Lowest** options. It uses the rolled initiatives of the selected creatures in each combat. Unrolled entries are ignored; if none have rolled, the Horde stays unrolled. For an even number of results, median uses the higher of the two middle values, without averaging. For example, `15, 12, 10, 7, 5, 1` produces `10`. Splitting again gives every member the resulting Horde initiative.
+**Merged Horde initiative** is a world setting with **Highest**, **Median** (default), and **Lowest** options. It uses the rolled initiatives of the selected creatures in each combat. Unrolled entries are ignored; if none have rolled, the Horde stays unrolled. For an even number of results, median uses the higher of the two middle values, without averaging. For example, `15, 12, 10, 7, 5, 1` produces `10`. Splitting again follows the separate Split Horde: initiative setting.
 
 ## What changed in 0.4.0
 
@@ -122,7 +126,7 @@ Open the specific token's HUD and choose **Horde → Split/Merge Horde**, or use
 
 The original token and combatant are retained as the first member. New tokens receive independent HP, the creature's original size, and copies of its items/effects. Nearby free positions are used; splitting stops before changing anything if there is insufficient space within the scene. Placement avoids occupied token footprints but does not evaluate walls or terrain.
 
-Every new combatant receives the original combatant's initiative value, without rerolling. Already spent attack slots for the current round are inherited, preventing free attacks by splitting after attacking. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
+By default, every member keeps the original Horde initiative. Set **Split Horde: initiative** to **Roll new initiative for each creature** to reroll all members through the system instead, including the original retained token. Already spent attack slots for the current round are inherited, preventing free attacks by splitting after attacking. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
 
 **Split Horde: HP distribution** is a world setting:
 
