@@ -1,5 +1,6 @@
+import {splitToken} from './split.mjs';
 import {installSaves} from './saves.mjs';
-import {syncPopulation,populationActorUpdated} from './population.mjs';
+import {syncPopulation,populationActorUpdated,SIZE_DEFAULTS,sizeThresholds} from './population.mjs';
 import { TABLE, integer, planAttack, nextLane, parseCommand, parseMarkedRoll, serialQueue, damageAssignments, reserveTurn, bucketKey, resolveMob } from './logic.mjs';
 export const ID = 'yarpenart-mob-attacker';
 const enqueue = serialQueue();
@@ -459,18 +460,55 @@ export function renderTracker(app,html) {
   injectButton(element.querySelector('.combat-tracker-header') ?? element.querySelector('header'),t('toggleSelected'),false,
     () => toggleTokens(),{key:'toggleSelected'});
 }
-function renderSheet(app,html) {
+export async function splitHorde(doc) {
+  requireAuthority();
+  return enqueue(async()=>{
+    const result=await splitToken(doc,{mode:game.settings.get(ID,'splitHP'),requireAuthority});
+    ui.combat?.render();ui.notifications.info(t('splitDone',{count:result.tokens.length}));return result;
+  });
+}
+export async function hordeMenu(doc,actor=doc.actor ?? doc) {
+  requireAuthority();
+  const s=settings(doc,actor);
+  const action=await foundry.applications.api.DialogV2.wait({window:{title:`Horde — ${actor.name}`},classes:['ya-horde-dialog','ya-horde-menu'],
+    content:`<p>${esc(s.enabled ? t('menuPopulation',{count:s.count}) : t('menuUnmarked'))}</p>`,
+    buttons:[{action:'configure',label:t('configure'),default:true,callback:()=> 'configure'},
+      {action:'force',label:t('forceHit'),disabled:!s.enabled,callback:()=> 'force'},
+      {action:'save',label:t('hordeSave'),disabled:!s.enabled,callback:()=> 'save'},
+      {action:'split',label:t('splitHorde'),disabled:!s.enabled||s.count<2||!doc.actor,callback:()=> 'split'}],rejectClose:false});
+  if(action==='configure')return configure(doc,actor);
+  if(action==='force')return forceFromSheet(actor);
+  if(action==='save')return saves.open(actor);
+  if(action==='split')return splitHorde(doc);
+}
+export function renderSheet(app,html) {
   if (!game.user.isGM || app.actor?.type !== 'npc') return;
-  const element=root(html); if (!element) return;
-  injectButton(element.querySelector('.window-header') ?? element.querySelector('header'), 'Horde',false,() => configure(sourceFor(app.actor),app.actor));
-  injectButton(element.querySelector('.window-header') ?? element.querySelector('header'),t('forceHit'),false,()=>forceFromSheet(app.actor),{key:'forceHit'});
+  const element=root(app.element) ?? root(html); if (!element) return;
+  const header=element.querySelector('.window-header') ?? element.querySelector('header');if(!header)return;
+  // Remove buttons left by a partial sheet render, then keep one menu before source/XP.
+  for(const old of header.querySelectorAll('[data-ya-horde-key]'))if(old.dataset.yaHordeKey!=='hordeMenu')old.remove();
+  const container=header.querySelector('.header-elements') ?? header;
+  injectButton(container,'Horde',false,()=>hordeMenu(sourceFor(app.actor),app.actor),{key:'hordeMenu'});
+  const button=container.querySelector('[data-ya-horde-key="hordeMenu"]');
+  if(button)container.prepend(button);
 }
 function renderHUD(app,html) {
   if (!game.user.isGM) return;
   const token=app.object, actor=token?.actor;
   if (actor?.type !== 'npc') return;
-  const s=settings(token.document,actor);
-  injectButton(root(html)?.querySelector('.col.right'),'Horde',s.enabled,() => configure(token.document,actor));
+  const s=settings(token.document,actor),container=root(html)?.querySelector('.col.right');
+  injectButton(container,'Horde',s.enabled,() => hordeMenu(token.document,actor));
+  if(s.enabled&&s.count>1)injectButton(container,t('splitHorde'),true,()=>splitHorde(token.document),{key:'splitHorde'});
+}
+let sizeTimer;
+function scheduleSizes() {
+  clearTimeout(sizeTimer);sizeTimer=setTimeout(()=>guard(async()=>{
+    if(!authority())return;
+    for(const base of Object.keys(SIZE_DEFAULTS))sizeThresholds(base);
+    for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {
+      if(token.getFlag(ID,'population'))await syncPopulation(token);
+    }
+  })(),250);
 }
 async function loadLanguage() {
   const lang=game.settings.get(ID,'language');
@@ -506,6 +544,8 @@ export const saves=installSaves({t,esc,dialog,field,select,value,card,requireAut
 Hooks.once('init',() => {
   game.settings.register(ID,'language',{name:'HORDE.language',scope:'client',config:true,type:String,choices:{en:'English',pl:'Polski'},default:'en',onChange:loadLanguage});
   game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:false});
+  game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:true,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
+  for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:true,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
   game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
 });
 Hooks.once('ready',async () => {
@@ -523,7 +563,7 @@ Hooks.once('ready',async () => {
   libWrapper.register(ID,'CONFIG.DND5E.activityTypes.save.documentClass.prototype.rollDamage',
     async function(wrapped,...args) {try {return await saves.interceptSaveDamage.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
   game.modules.get(ID).api = {configure:() => {const s=selectedSource();return configure(s.doc,s.actor);},
-    save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
+    save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,split:()=>splitHorde(selectedSource().doc),attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
   Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
   Hooks.on('renderCombatTracker',renderTracker);
   Hooks.on('renderActorSheetV2',renderSheet);
@@ -531,8 +571,6 @@ Hooks.once('ready',async () => {
   Hooks.on('renderTokenHUD',renderHUD);
   Hooks.on('renderChatMessageHTML',renderForceButtons);
   Hooks.on('renderChatMessageHTML',saves.render);
-  Hooks.on('renderActorSheetV2',saves.sheet);
-  Hooks.on('renderActorSheet',saves.sheet);
   ui.combat?.render();
   ui.controls?.render();
 });

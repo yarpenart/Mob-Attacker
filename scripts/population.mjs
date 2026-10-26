@@ -3,10 +3,22 @@ export const ID='yarpenart-mob-attacker';
 export function livingCount(hp,base,initial) {
   return Math.max(0,Math.min(initial,Math.ceil(Math.max(0,Number(hp))/base)));
 }
-export function hordeSize(count,base='med') {
+export const SIZE_DEFAULTS={sm:{med:2,lg:3,huge:6,grg:10},med:{lg:3,huge:6,grg:10},lg:{huge:6,grg:10}};
+export function sizeThresholds(base) {
+  const defaults=SIZE_DEFAULTS[base];if(!defaults)return null;
+  const result={};let previous=1;
+  for(const [size,fallback] of Object.entries(defaults)) {
+    const n=globalThis.game?.settings?.get(ID,`size_${base}_${size}`) ?? fallback;
+    if(!Number.isSafeInteger(n)||n<=previous||n>200)throw Error('Horde size thresholds must increase and remain between 2 and 200');
+    result[size]=n;previous=n;
+  }
+  return result;
+}
+export function hordeSize(count,base='med',thresholds=sizeThresholds(base)) {
   const rank={tiny:0,sm:1,med:2,lg:3,huge:4,grg:5};
-  const desired=count>=10?5:count>=6?4:count>=3?3:count===2?2:(rank[base]??2);
-  const index=Math.max(rank[base]??2,desired);
+  let index=rank[base]??2;
+  const rules=thresholds ?? SIZE_DEFAULTS.med;
+  for(const [size,min] of Object.entries(rules))if(count>=min)index=Math.max(index,rank[size]);
   return {size:['tiny','sm','med','lg','huge','grg'][index],width:[0.5,1,1,2,3,4][index]};
 }
 export async function syncPopulation(doc,options={}) {
