@@ -43,3 +43,9 @@ test('reusing the same token HUD binds its button to the new token',async()=>{
  await click(current,'click');assert.equal(opened.at(-1).window.title,'Horde — Second Goblin');
  assert.ok(current.listeners.pointerdown);assert.ok(current.listeners.mousedown);
 });
+test('left-clicking the initiative Horde button opens a cancel-default confirmation instead of toggling immediately',async()=>{
+ const {actor,doc}=npc(),row=new Element(),controls=new Element('.combatant-controls'),root=new Element();row.dataset.combatantId='c';row.append(controls);root.append(row);
+ renderTracker({viewed:{combatants:new Map([['c',{actor,token:doc}]])}},root);
+ const button=controls.querySelector('[data-ya-horde-key="configure"]');await click(button,'click');
+ assert.deepEqual(opened.at(-1).buttons.map(b=>b.action),['cancel','confirm']);assert.equal(opened.at(-1).buttons.find(b=>b.default).action,'cancel');assert.equal(opened.at(-1).window.title,'HORDE.confirmUnmarkHordeTitle');
+});
