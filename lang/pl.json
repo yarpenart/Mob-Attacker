@@ -172,7 +172,7 @@
     "hordeStateChanged": "Oznaczenie hordy zmieniło się w czasie potwierdzania. Kliknij ponownie, aby sprawdzić aktualny stan.",
     "noEquivalentAttack": "Aktywny NPC nie ma pasującego ataku. Otwórz jego kartę lub wybierz wspólny atak.",
     "combineDamage": "Łącz obrażenia hordy w jedną kartę",
-    "combineDamageHint": "Każde trafienie jest rzucane osobno, a obrażenia z jednego rozliczenia tokena łączone w jedną systemową kartę. Typy i właściwości pozostają zachowane. Cel otrzymuje jedną paczkę obrażeń, także przy redukcjach i zaokrąglaniu odporności. Osobne kliknięcia tworzą osobne paczki. Domyślnie wyłączone.",
+    "combineDamageHint": "Każde trafienie jest rzucane osobno, a obrażenia z jednego rozliczenia tokena łączone w jedną systemową kartę. Typy i właściwości pozostają zachowane. Cel otrzymuje jedną paczkę obrażeń, także przy redukcjach i zaokrąglaniu odporności. Osobne kliknięcia tworzą osobne paczki. Domyślnie włączone.",
     "damagePacketUnavailable": "Systemowe łączenie obrażeń D&D5e jest niedostępne. Wyłącz łączenie obrażeń lub sprawdź wersję systemu.",
     "combinedPartial": "Przerwano obrażenia: rzucono {completed}/{total} trafień, suma przed odpornościami {totalDamage}. Wyniki zapisano na tej prywatnej karcie. Częściowa paczka obrażeń mogła zostać wysłana: sprawdź czat przed zastosowaniem lub ponownym rzutem. Liczniki i amunicja pozostają zużyte."
   }

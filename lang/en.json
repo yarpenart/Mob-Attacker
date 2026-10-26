@@ -172,7 +172,7 @@
     "hordeStateChanged": "Horde membership changed while the confirmation was open. Click again to review the current state.",
     "noEquivalentAttack": "The active NPC has no matching attack. Open its sheet or choose a shared attack.",
     "combineDamage": "Combine Horde damage into one card",
-    "combineDamageHint": "Roll every successful hit separately, then combine all damage from one resolution of this token into one native damage card. Types and properties are retained. Applying it treats the damage as one packet, including target reductions and resistance rounding. Separate clicks create separate packets. Default: off.",
+    "combineDamageHint": "Roll every successful hit separately, then combine all damage from one resolution of this token into one native damage card. Types and properties are retained. Applying it treats the damage as one packet, including target reductions and resistance rounding. Separate clicks create separate packets. Default: on.",
     "damagePacketUnavailable": "Native D&D5e damage aggregation is unavailable. Disable combined damage or check the system version.",
     "combinedPartial": "Damage interrupted: {completed}/{total} hits rolled, raw total {totalDamage}. Completed rolls are stored on this private card. A partial damage packet may have been posted: check chat before applying or rerolling damage. Counters and ammunition remain spent."
   }
