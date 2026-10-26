@@ -91,6 +91,24 @@
     "saveStale": "HP lub liczebność zmieniły się od tego save’a. Rozpatrz nowy save przed zastosowaniem obrażeń.",
     "saveApplied": "Obrażenia zastosowane. Zaktualizowano liczebność i rozmiar hordy.",
     "damageInvalid": "Obrażenia muszą być liczbą nieujemną.",
-    "saveDuplicate": "Ten token rozpatrzył już ten save dla tego zaklęcia. Tryb wymuszony może zastąpić jego oczekujący wynik."
+    "saveDuplicate": "Ten token rozpatrzył już ten save dla tego zaklęcia. Tryb wymuszony może zastąpić jego oczekujący wynik.",
+    "splitHorde": "Rozdziel hordę",
+    "splitHP": "Rozdzielanie hordy: podział HP",
+    "splitHPHint": "Wybierz równy lub losowy podział HP między pojedyncze istoty. Oba tryby zachowują sumę aktualnych HP; każda istota otrzymuje od 1 do bazowego maksimum HP.",
+    "splitEqual": "Możliwie równo",
+    "splitRandom": "Losowo, z zachowaniem sumy HP",
+    "splitDone": "Horda rozdzielona na {count} pojedynczych tokenów.",
+    "menuPopulation": "Żywych istot w tym tokenie: {count}.",
+    "menuUnmarked": "Skonfiguruj tego NPC, aby włączyć akcje hordy.",
+    "sizeThresholdHint": "Minimalna liczba żywych istot dla tego rozmiaru. Progi dla jednego rozmiaru bazowego muszą rosnąć (2–200). Zapisane zmiany przeliczają też istniejące tokeny hord.",
+    "size_sm_med": "Bazowo Small → Medium: minimalna liczba istot",
+    "size_sm_lg": "Bazowo Small → Large: minimalna liczba istot",
+    "size_sm_huge": "Bazowo Small → Huge: minimalna liczba istot",
+    "size_sm_grg": "Bazowo Small → Gargantuan: minimalna liczba istot",
+    "size_med_lg": "Bazowo Medium → Large: minimalna liczba istot",
+    "size_med_huge": "Bazowo Medium → Huge: minimalna liczba istot",
+    "size_med_grg": "Bazowo Medium → Gargantuan: minimalna liczba istot",
+    "size_lg_huge": "Bazowo Large → Huge: minimalna liczba istot",
+    "size_lg_grg": "Bazowo Large → Gargantuan: minimalna liczba istot"
   }
 }

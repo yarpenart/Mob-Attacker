@@ -91,6 +91,24 @@
     "saveStale": "HP or population changed since this save. Resolve a new save before applying damage.",
     "saveApplied": "Damage applied. Horde population and size updated.",
     "damageInvalid": "Damage must be a nonnegative number.",
-    "saveDuplicate": "This token already resolved this save for this spell. Select forced mode to replace its pending result."
+    "saveDuplicate": "This token already resolved this save for this spell. Select forced mode to replace its pending result.",
+    "splitHorde": "Split Horde",
+    "splitHP": "Split Horde: HP distribution",
+    "splitHPHint": "Choose equal or random HP for individual members. Both modes preserve total current HP; each member receives 1 to its base maximum HP.",
+    "splitEqual": "As evenly as possible",
+    "splitRandom": "Random, preserving total HP",
+    "splitDone": "Horde split into {count} individual tokens.",
+    "menuPopulation": "Living creatures in this token: {count}.",
+    "menuUnmarked": "Configure this NPC to enable Horde actions.",
+    "sizeThresholdHint": "Minimum living creatures for this size. Thresholds for each base size must increase (2–200). Saved changes also resize existing Horde tokens.",
+    "size_sm_med": "Base Small → Medium: minimum creatures",
+    "size_sm_lg": "Base Small → Large: minimum creatures",
+    "size_sm_huge": "Base Small → Huge: minimum creatures",
+    "size_sm_grg": "Base Small → Gargantuan: minimum creatures",
+    "size_med_lg": "Base Medium → Large: minimum creatures",
+    "size_med_huge": "Base Medium → Huge: minimum creatures",
+    "size_med_grg": "Base Medium → Gargantuan: minimum creatures",
+    "size_lg_huge": "Base Large → Huge: minimum creatures",
+    "size_lg_grg": "Base Large → Gargantuan: minimum creatures"
   }
 }
