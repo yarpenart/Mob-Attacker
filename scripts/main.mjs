@@ -609,7 +609,7 @@ Hooks.once('init',() => {
   game.settings.register(ID,'splitInitiative',{name:'HORDE.splitInitiative',hint:'HORDE.splitInitiativeHint',scope:'world',config:false,type:String,choices:{shared:'HORDE.splitInitiativeShared',reroll:'HORDE.splitInitiativeReroll'},default:'shared'});
   game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:false,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
   for(const [base,rules] of Object.entries(SIZE_DEFAULTS))for(const [size,n] of Object.entries(rules))game.settings.register(ID,`size_${base}_${size}`,{name:`HORDE.size_${base}_${size}`,hint:'HORDE.sizeThresholdHint',scope:'world',config:false,type:Number,range:{min:2,max:200,step:1},default:n,onChange:scheduleSizes});
-  game.settings.register(ID,'combineDamage',{name:'HORDE.combineDamage',hint:'HORDE.combineDamageHint',scope:'world',config:true,type:Boolean,default:false});
+  game.settings.register(ID,'combineDamage',{name:'HORDE.combineDamage',hint:'HORDE.combineDamageHint',scope:'world',config:true,type:Boolean,default:true});
   game.settings.register(ID,'combatSummary',{name:'HORDE.combatSummary',hint:'HORDE.combatSummaryHint',scope:'world',config:true,type:Boolean,default:true});
   game.settings.register(ID,'promptMarked',{name:'HORDE.promptMarked',hint:'HORDE.promptMarkedHint',scope:'world',config:true,type:Boolean,default:false});
 });
