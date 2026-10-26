@@ -1,3 +1,5 @@
+import {installSaves} from './saves.mjs';
+import {syncPopulation,populationActorUpdated} from './population.mjs';
 import { TABLE, integer, planAttack, nextLane, parseCommand, parseMarkedRoll, serialQueue, damageAssignments, reserveTurn, bucketKey, resolveMob } from './logic.mjs';
 export const ID = 'yarpenart-mob-attacker';
 const enqueue = serialQueue();
@@ -53,15 +55,25 @@ function ledgerOwner() { return game.combat?.started ? game.combat : canvas.scen
 function scopeFor(owner) { return owner.uuid; }
 function ledger(owner) {
   const state = owner.getFlag(ID, 'ledger');
-  if (state?.schema === 2 && state.scope === scopeFor(owner) && Array.isArray(state.entries)) {
-    return {scope:state.scope,buckets:Object.fromEntries(foundry.utils.deepClone(state.entries)),turns:foundry.utils.deepClone(state.turns ?? [])};
+  if ([2,3].includes(state?.schema) && state.scope === scopeFor(owner) && Array.isArray(state.entries)) {
+    const buckets={};
+    for (const [oldKey,stored] of foundry.utils.deepClone(state.entries)) {
+      if (state.schema===3) {buckets[oldKey]=stored;continue;}
+      const key=bucketKey({...stored,lane:1}),previous=buckets[key],threshold=resolveMob(stored.ac,stored.bonus,1).threshold;
+      const sources=(stored.sources ?? []).map(s=>`${s}::slot:${stored.lane}`);
+      const total=(previous?.total ?? 0)+(stored.total ?? 0);
+      const pending=(previous?.pendingHits ?? 0)+Math.floor(total/threshold)-Math.floor((previous?.total ?? 0)/threshold)-Math.floor((stored.total ?? 0)/threshold);
+      buckets[key]={...stored,lane:1,total,pendingHits:pending,sources:[...(previous?.sources ?? []),...sources],
+        candidate:previous?.candidate?.average>stored.candidate?.average ? previous.candidate : stored.candidate ?? previous?.candidate};
+    }
+    return {scope:state.scope,buckets,turns:foundry.utils.deepClone(state.turns ?? [])};
   }
   return {scope:scopeFor(owner),buckets:{},turns:[]};
 }
 async function saveLedger(owner,state) {
   // Dynamic UUIDs are VALUES inside an array, never dotted document update keys.
   // Arrays are replaced atomically, also preventing stale recursive bucket merges.
-  await owner.setFlag(ID,'ledger',{schema:2,scope:state.scope,entries:Object.entries(state.buckets),turns:state.turns ?? []});
+  await owner.setFlag(ID,'ledger',{schema:3,scope:state.scope,entries:Object.entries(state.buckets),turns:state.turns ?? []});
 }
 function rollMode() {
   const mode=game.settings.get('core',(game.release?.generation ?? 14) >= 14 ? 'messageMode' : 'rollMode');
@@ -86,6 +98,7 @@ export async function toggleTokens(tokens = canvas.tokens?.controlled ?? []) {
     ?? docs.map(doc => doc.getFlag(ID,'horde')?.group).find(Boolean) ?? 'Horde';
   const updates=docs.map(doc => ({_id:doc.id,[`flags.${ID}.horde`]:{...settings(doc),enabled,...(enabled ? {group} : {})}}));
   await canvas.scene.updateEmbeddedDocuments('Token',updates);
+  for (const doc of docs) await syncPopulation(doc);
   ui.combat?.render(); ui.controls?.render();
   ui.notifications.info(t(enabled ? 'markedMany' : 'unmarkedMany',{count:docs.length}));
   return {enabled,count:docs.length,group};
@@ -121,10 +134,11 @@ function configFields(s) {
 }
 export async function configure(doc, actor = doc.actor ?? doc) {
   requireAuthority();
-  const s = settings(doc, actor);
-  const result = await dialog(`${t('title')} — ${actor.name}`, configFields(s)
+  const s = settings(doc, actor), population=doc.getFlag(ID,'population');
+  const result = await dialog(`${t('title')} — ${actor.name}`, configFields({...s,count:Math.max(1,s.count)})
+    + (population ? `<p>${esc(t('populationInfo',{initial:population.initial,current:population.current,hp:population.baseHP}))}</p>` : '')
     + `<p class="hint">${esc(t('configHint'))}</p>` + field('bonus','bonus',s.bonus) + field('damage','damage',s.damage), configValues);
-  if (result && result !== 'cancel') { await doc.setFlag(ID,'horde',result); ui.combat?.render(); }
+  if (result && result !== 'cancel') { await doc.setFlag(ID,'horde',{...s,...result}); await syncPopulation(doc,{config:{...s,...result},reconfigure:true}); ui.combat?.render(); }
 }
 function targets() {
   const tokens = canvas.tokens?.placeables?.filter(token => token.actor && token.document.uuid) ?? [];
@@ -252,6 +266,11 @@ export async function resolve({doc,actor,activity,options}) {
       ({doc,actor,activity}=context);
     }
     if (actor.type !== 'npc' || !options.enabled) throw new Error(t('npcOnly'));
+    const populationConfig=options.remember ? {...settings(doc,actor),enabled:options.enabled,count:options.count,group:options.group,attackLimit:options.attackLimit ?? settings(doc,actor).attackLimit} : undefined;
+    await syncPopulation(doc,{config:populationConfig,reconfigure:!!options.remember});
+    actor=doc.actor ?? actor;
+    if (doc.getFlag(ID,'population')) options={...options,count:settings(doc,actor).count};
+    if (!options.count) throw new Error(t('emptyHorde'));
     const owner = ledgerOwner();
     if (!owner) throw new Error(t('noScene'));
     const target = await fromUuid(options.target);
@@ -266,24 +285,24 @@ export async function resolve({doc,actor,activity,options}) {
     // Validate manual damage before committing any counters.
     if (!activity) new CONFIG.Dice.DamageRoll(options.damage, actor.getRollData());
     const profile=await damageProfile(activity,actor,options);
-    // Each creature starts its first attack slot again next round, while the
-    // slot's accumulated hit progress persists for the entire combat.
+    // Turn slots stop duplicate attempts; all slots feed one target bucket.
     const source=owner.documentName === 'Combat' ? `${context?.guard.combatant ?? doc.uuid}::round:${owner.round}`
       : `${doc.uuid}::attempt:${foundry.utils.randomID()}`;
     const firstLane = reservation?.firstLane ?? options.lane ?? nextLane(state,options.group,source);
     const plans = [];
     for (let index=0; index<(options.forceHit ? 1 : options.attacks); index++) {
-      const input={group:options.group,target:target.uuid,source,bonus,ac,count:options.count,lane:firstLane+index};
+      const slot=firstLane+index;
+      const input={group:options.group,target:target.uuid,source:`${source}::slot:${slot}`,bonus,ac,count:options.count,lane:1};
       let plan;
       if (options.forceHit) {
         const key=bucketKey(input),previous=state.buckets[key];
         plan={key,result:{...resolveMob(ac,bonus,options.count,previous?.total ?? 0),hits:1,after:0,remainder:0},
-          bucket:{...input,total:0,sources:[...new Set([...(previous?.sources ?? []),source])]}};
+          bucket:{...input,total:0,sources:[...new Set([...(previous?.sources ?? []),input.source])]}};
       } else plan=planAttack(state,input);
       const assignment=damageAssignments(state.buckets[plan.key]?.candidate,profile,
         plan.result.before,options.count,plan.result.threshold);
       plan.bucket.candidate=options.forceHit ? null : assignment.next;
-      plan.profiles=options.forceHit ? [profile] : assignment.profiles;
+      plan.profiles=options.forceHit ? [profile] : [...Array.from({length:state.buckets[plan.key]?.pendingHits ?? 0},()=>state.buckets[plan.key]?.candidate ?? profile),...assignment.profiles];
       state.buckets[plan.key] = plan.bucket;
       plans.push({...plan,lane:firstLane+index});
     }
@@ -292,7 +311,7 @@ export async function resolve({doc,actor,activity,options}) {
       target:target.uuid,name:activity?.item.name ?? options.attackName ?? actor.name, lane:plan.lane}));
     const totalHits = jobs.reduce((sum,j) => sum+j.hits,0);
     if (options.forceHit) for (const bucket of Object.values(state.buckets)) {
-      if (bucket.group===options.group && bucket.target===target.uuid) {bucket.total=0;bucket.candidate=null;}
+      if (bucket.group===options.group && bucket.target===target.uuid) {bucket.total=0;bucket.candidate=null;bucket.pendingHits=0;}
     }
     if (reservation) {
       if (reservation.convert) {reservation.convert.forced=true;reservation.convert.hits=1;}
@@ -305,7 +324,7 @@ export async function resolve({doc,actor,activity,options}) {
     if (scopeFor(owner) !== state.scope) throw new Error(t('roundChanged'));
     if (context && JSON.stringify(context.guard)!==JSON.stringify(attackContext(activity,actor).guard)) throw new Error(t('turnChanged'));
     if (!reservation?.convert) await consumeAmmunition(activity,actor,options,options.count*(options.forceHit ? 1 : options.attacks));
-    if (options.remember) await doc.setFlag(ID,'horde',{enabled:true,count:options.count,attackLimit:options.attackLimit ?? settings(doc,actor).attackLimit,group:options.group,bonus:options.bonus,damage:options.damage});
+    if (options.remember) await doc.setFlag(ID,'horde',{...settings(doc,actor),enabled:true,count:options.count,attackLimit:options.attackLimit ?? settings(doc,actor).attackLimit,group:options.group,bonus:options.bonus,damage:options.damage});
     await saveLedger(owner,state);
     const resultText = `<strong>${esc(options.group)} → ${esc(target.name)}</strong>${context ? `<p>${esc(t('initiativeAttacker',{name:actor.name}))}</p>` : ''}${options.forceHit ? `<p>${esc(t('forcedResult'))}</p>` : ''}<p>${esc(t('summary',{ac,bonus,count:options.count,hits:totalHits}))}</p>`
       + plans.map(p => `<p>${esc(t('progress',{lane:p.lane,need:p.result.required,threshold:p.result.threshold,
@@ -347,7 +366,7 @@ export async function interceptAttack(wrapped, config = {}, nativeDialog = {}, m
     : await attackDialog({doc,actor,activity,config});
   if (!options || options === 'cancel') return null;
   if (!options.enabled) {
-    if (options.remember) await doc.setFlag(ID,'horde',{...s,enabled:false});
+    if (options.remember) {await doc.setFlag(ID,'horde',{...s,enabled:false});await syncPopulation(doc);}
     return wrapped(config,nativeDialog,message);
   }
   if (!options.target) throw new Error(t('chooseTarget'));
@@ -395,7 +414,7 @@ async function resetCounters() {
   requireAuthority();
   const yes = await foundry.applications.api.DialogV2.confirm({window:{title:t('reset')},content:`<p>${esc(t('resetConfirm'))}</p>`});
   if (!yes) return;
-  await enqueue(async () => {const owner = ledgerOwner(); if (owner) await owner.unsetFlag(ID,'ledger');});
+  await enqueue(async () => {const owner = ledgerOwner(); if (owner) {await owner.unsetFlag(ID,'ledger');await owner.unsetFlag(ID,'saveLedger');}});
 }
 async function manual(command = {}) {
   requireAuthority();
@@ -476,12 +495,14 @@ export async function interceptChat(wrapped,text,...args) {
   }
   if (command.action === 'help') await help();
   else if (command.action === 'toggle') await toggleTokens();
+  else if (command.action === 'save') {const s=selectedSource();await saves.open(s.actor);}
   else if (command.action === 'reset') await resetCounters();
   else if (command.action === 'config') {const s=selectedSource();await configure(s.doc,s.actor);}
   else await manual(command);
   // Consume commands before core validates unknown slash commands or rolls dice.
   return undefined;
 }
+export const saves=installSaves({t,esc,dialog,field,select,value,card,requireAuthority,authority,settings,sourceFor,injectButton,root,guard});
 Hooks.once('init',() => {
   game.settings.register(ID,'language',{name:'HORDE.language',scope:'client',config:true,type:String,choices:{en:'English',pl:'Polski'},default:'en',onChange:loadLanguage});
   game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:false});
@@ -497,13 +518,21 @@ Hooks.once('ready',async () => {
     async function(wrapped,...args) {try {return await interceptChat(wrapped,...args);} catch(error) {notifyError(error);return undefined;}},'MIXED');
   libWrapper.register(ID,'CONFIG.DND5E.activityTypes.attack.documentClass.prototype.rollDamage',
     async function(wrapped,...args) {try {return await interceptDamage.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
+  libWrapper.register(ID,'CONFIG.Actor.documentClass.prototype.rollSavingThrow',
+    async function(wrapped,...args) {try {return await saves.interceptSave.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
+  libWrapper.register(ID,'CONFIG.DND5E.activityTypes.save.documentClass.prototype.rollDamage',
+    async function(wrapped,...args) {try {return await saves.interceptSaveDamage.call(this,wrapped,...args);} catch(error) {notifyError(error);return null;}},'MIXED');
   game.modules.get(ID).api = {configure:() => {const s=selectedSource();return configure(s.doc,s.actor);},
-    attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
+    save:()=>{const s=selectedSource();return saves.open(s.actor);},resolveSave:saves.resolveSave,attack:manual,reset:resetCounters,help,resolve,toggleSelected:toggleTokens};
+  Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
   Hooks.on('renderCombatTracker',renderTracker);
   Hooks.on('renderActorSheetV2',renderSheet);
   Hooks.on('renderActorSheet',renderSheet);
   Hooks.on('renderTokenHUD',renderHUD);
   Hooks.on('renderChatMessageHTML',renderForceButtons);
+  Hooks.on('renderChatMessageHTML',saves.render);
+  Hooks.on('renderActorSheetV2',saves.sheet);
+  Hooks.on('renderActorSheet',saves.sheet);
   ui.combat?.render();
   ui.controls?.render();
 });

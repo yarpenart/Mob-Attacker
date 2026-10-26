@@ -27,13 +27,14 @@ export function bucketKey({group, target, bonus, lane, ac}) {
 }
 export function nextLane(state, group, source) {
   return 1 + Math.max(0, ...Object.values(state.buckets ?? {}).filter(b => b.group === group)
-    .flatMap(b => b.sources?.includes(source) ? [b.lane] : []));
+    .flatMap(b => (b.sources ?? []).flatMap(s=>s===source ? [b.lane] : s.startsWith(`${source}::slot:`) ? [Number(s.split('::slot:').at(-1))] : [])));
 }
 export function planAttack(state, {group, target, source, bonus, ac, count, lane}) {
   const key = bucketKey({group, target, bonus, lane, ac});
   const bucket = state.buckets?.[key];
   if (bucket?.sources?.includes(source)) throw new Error('DUPLICATE');
   const result = resolveMob(ac, bonus, count, bucket?.total ?? 0);
+  result.hits+=bucket?.pendingHits ?? 0;
   return { key, result, bucket: {group, target, bonus, ac, lane, total: result.after,
     sources: [...(bucket?.sources ?? []), source]} };
 }
@@ -65,7 +66,7 @@ export function parseCommand(text) {
   if (!/^\/horde(?:\s|$)/i.test(text.trim())) return null;
   const body = text.trim().replace(/^\/horde\s*/i, '');
   if (!body) return {action: 'open'};
-  if (/^(config|reset|help|toggle)$/i.test(body)) return {action: body.toLowerCase()};
+  if (/^(config|reset|help|toggle|save)$/i.test(body)) return {action: body.toLowerCase()};
   const parts = body.split('|').map(x => x.trim());
   if (parts.length < 2 || parts.length > 5 || !parts[0] || !parts[1]) throw new Error('COMMAND');
   return {action: 'attack', bonus: parts[0], damage: parts[1],
