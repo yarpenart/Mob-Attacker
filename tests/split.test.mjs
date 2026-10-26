@@ -71,3 +71,34 @@ test('random splitting without combat preserves total HP and does not create ini
  const {token,scene,combat}=fixture();game.combats=new Map();game.combat=null;
  const result=await splitToken(token,{mode:'random'});assert.equal(scene.tokens.size,8);assert.equal(result.hp.reduce((a,b)=>a+b,0),50);assert.equal(combat.combatants.size,1);
 });
+test('reroll mode rolls native initiative for every member, including the original token',async()=>{
+ const {token,combat}=fixture();let calls=0;
+ game.settings.get=(id,key)=>key==='splitInitiative'?'reroll':undefined;
+ combat.rollInitiative=async(ids,options)=>{calls++;assert.equal(ids.length,8);assert.ok(ids.includes('c0'));assert.equal(options.updateTurn,true);
+  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.name,'Goblin 1');
+  ids.forEach((id,i)=>{combat.combatants.get(id).initiative=i+3;});};
+ await splitToken(token);assert.equal(calls,1);assert.equal(combat.combatants.get('c0').initiative,3);
+ assert.equal(new Set([...combat.combatants.values()].map(c=>c.initiative)).size,8);assert.equal(combat.getFlag(ID,'ledger').turns.length,8);
+});
+test('shared initiative remains the default and does not invoke a fresh roll',async()=>{
+ const {token,combat}=fixture();combat.rollInitiative=async()=>{throw Error('Unexpected reroll');};
+ await splitToken(token);assert.ok([...combat.combatants.values()].every(c=>c.initiative===17));
+});
+test('a failed initiative reroll restores the original initiative, name, HP and ledger',async()=>{
+ const {token,combat,scene}=fixture();
+ combat.rollInitiative=async(ids)=>{combat.combatants.get(ids[0]).initiative=2;throw Error('roll failed');};
+ await assert.rejects(splitToken(token,{initiativeMode:'reroll'}),/roll failed/);
+ assert.equal(scene.tokens.size,1);assert.equal(combat.combatants.size,1);assert.equal(combat.combatants.get('c0').initiative,17);
+ assert.equal(combat.combatants.get('c0').name,'Goblin (Horde)');assert.equal(token.actor.system.attributes.hp.value,50);
+ assert.equal(combat.getFlag(ID,'ledger').turns.length,1);assert.equal(token.getFlag(ID,'splitLock'),undefined);
+});
+test('rerolling keeps the same active combatant after initiative sorting changes',async()=>{
+ const {token,combat}=fixture();Object.defineProperty(combat,'combatant',{get(){return this.turns[this.turn];}});
+ combat.rollInitiative=async(ids)=>{ids.forEach((id,i)=>{combat.combatants.get(id).initiative=i;});combat.turns.sort((a,b)=>b.initiative-a.initiative);};
+ await splitToken(token,{initiativeMode:'reroll'});assert.equal(combat.combatant.id,'c0');assert.equal(combat.turn,7);
+});
+test('reroll mode outside combat creates no initiative entries',async()=>{
+ const {token,combat}=fixture();game.combats=new Map();game.combat=null;
+ combat.rollInitiative=async()=>{throw Error('No combat rolls should be requested');};
+ const result=await splitToken(token,{initiativeMode:'reroll'});assert.equal(result.tokens.length,8);assert.equal(combat.combatants.size,1);
+});
