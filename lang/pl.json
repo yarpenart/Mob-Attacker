@@ -149,10 +149,10 @@
     "adjectiveHint": "Puste pole używa wbudowanych przymiotników PL/EN. Wylosowane nazwy są zapisywane i nie zmieniają się po odświeżeniu. Nowe nazwy po splicie unikają powtórek na scenie.",
     "namePlaceholders": "Szablony obsługują {name}, {horde}, {member}, {number}, {adjective}. Nazwy hord zachowują (Horde). Zmiana ustawień aktualizuje istniejące hordy; pojedyncze moby zachowują nadane nazwy do następnego splitu.",
     "hordeHPMode": "Maksymalne HP nowej hordy",
-    "hordeHPMax": "Użyj maksimum z karty NPC (domyślnie)",
+    "hordeHPMax": "Użyj HP z bazowego statblocku (średnie; domyślnie)",
     "hordeHPRolled": "Wylosuj maksymalne HP każdej istoty",
     "hordeHPFormula": "Formuła losowania HP (puste = formuła NPC)",
-    "hordeHPHint": "Domyślnie: maksimum bazowego NPC × liczebność. Tryb losowy rzuca formułę HP osobno dla każdej istoty i sumuje wyniki; split zachowuje te maksima. Dotyczy tworzenia i zmiany liczebności hordy. Otrzymane obrażenia pozostają; merge nie losuje HP ponownie.",
+    "hordeHPHint": "Domyślnie: HP zapisane w bazowym statblocku NPC (zwykle średnia z formuły HP) × liczebność. Nie jest to maksymalny wynik na kościach. Tryb losowy rzuca formułę HP osobno dla każdej istoty i sumuje wyniki; split zachowuje te maksima. Dotyczy tworzenia i zmiany liczebności hordy. Otrzymane obrażenia pozostają; merge nie losuje HP ponownie.",
     "rerollHordeHP": "Wylosuj ponownie maksymalne HP istot teraz",
     "memberMaxima": "Zapisane maksymalne HP istot: {values}"
   }

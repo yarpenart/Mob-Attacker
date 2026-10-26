@@ -149,10 +149,10 @@
     "adjectiveHint": "Leave blank for built-in English/Polish adjectives. Generated names are stored; reloading does not reroll them. New split names avoid collisions on the scene.",
     "namePlaceholders": "Custom templates support {name}, {horde}, {member}, {number}, {adjective}. Horde names always retain (Horde). Name changes apply to existing Hordes; individual members keep their assigned names until the next split.",
     "hordeHPMode": "New Horde maximum HP",
-    "hordeHPMax": "Use NPC sheet maximum (default)",
+    "hordeHPMax": "Use base statblock HP (average; default)",
     "hordeHPRolled": "Roll maximum HP for each member",
     "hordeHPFormula": "HP roll formula (blank = NPC formula)",
-    "hordeHPHint": "Default: base NPC maximum × population. Rolled mode evaluates the NPC HP formula separately for each member and sums the results; split members keep those maxima. Applies when forming/reconfiguring a Horde. Existing wounds are retained; merging never rerolls HP.",
+    "hordeHPHint": "Default: the HP value written in the base NPC statblock (normally the average of its HP formula) × population. This does not maximize dice. Rolled mode evaluates the NPC HP formula separately for each member and sums the results; split members keep those maxima. Applies when forming/reconfiguring a Horde. Existing wounds are retained; merging never rerolls HP.",
     "rerollHordeHP": "Reroll member maximum HP now",
     "memberMaxima": "Stored member maximum HP: {values}"
   }
