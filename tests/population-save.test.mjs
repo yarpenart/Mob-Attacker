@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {livingCount,hordeSize,syncPopulation,ID} from '../scripts/population.mjs';
+import {livingCount,hordeSize,syncPopulation,syncHordeName,ID} from '../scripts/population.mjs';
 import {saveCount,saveDamage,installSaves} from '../scripts/saves.mjs';
 globalThis.foundry={utils:{deepClone:structuredClone}};
 function update(target,data) {
@@ -120,3 +120,22 @@ test('repeated saves for a spell are blocked; forced mode replaces only an unapp
  await assert.rejects(api.apply(first.message));await api.apply(forced.message);
  await assert.rejects(api.resolveSave({doc,actor:doc.actor,options:{...options,forced:8}}));
 });
+
+ test('population names gain one Horde suffix, then lose it after casualties, healing and disabling',async()=>{
+ const doc=token(8);doc.actor.name='Goblin';doc.name='Goblin';
+ await syncPopulation(doc);assert.equal(doc.name,'Goblin (Horde)');
+ await syncPopulation(doc);assert.equal(doc.name,'Goblin (Horde)');assert.equal(doc.actor.name,'Goblin');
+ doc.actor.system.attributes.hp.value=7;await syncPopulation(doc);assert.equal(doc.name,'Goblin');
+ doc.actor.system.attributes.hp.value=14;await syncPopulation(doc);assert.equal(doc.name,'Goblin (Horde)');
+ doc.flags[ID].horde.enabled=false;await syncPopulation(doc);assert.equal(doc.name,'Goblin');
+ });
+ test('initiative names follow their token, including explicit names, without renaming other scenes',async()=>{
+ const doc=token(8);doc.id='goblin';doc.parent={id:'x'};doc.actor.name='Goblin';doc.name='Custom token';
+ const rows=new Map([['a',{id:'a',tokenId:doc.id,sceneId:'x',name:'Custom initiative'}],['b',{id:'b',tokenId:doc.id,sceneId:'other',name:'Different scene'}]]);
+ const combat={combatants:rows,async updateEmbeddedDocuments(type,updates){assert.equal(type,'Combatant');for(const data of updates)Object.assign(rows.get(data._id),data);}};
+ const original=globalThis.game;globalThis.game={combats:new Map([['combat',combat]])};
+ try {await syncPopulation(doc);assert.equal(doc.name,'Goblin (Horde)');assert.equal(rows.get('a').name,'Goblin (Horde)');assert.equal(rows.get('b').name,'Different scene');
+ rows.get('a').name='Late initiative entry';await syncHordeName(doc,8);assert.equal(rows.get('a').name,'Goblin (Horde)');
+ doc.actor.system.attributes.hp.value=7;await syncPopulation(doc);assert.equal(doc.name,'Custom token');assert.equal(rows.get('a').name,'Custom token');
+ } finally {globalThis.game=original;}
+ });

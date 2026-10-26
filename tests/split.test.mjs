@@ -6,7 +6,7 @@ globalThis.foundry={utils:{deepClone:structuredClone}};
 function apply(doc,data){for(const [key,value] of Object.entries(data)){const path=key.split('.');let node=doc;for(const k of path.slice(0,-1))node=node[k]??={};const last=path.at(-1);if(last.startsWith('-='))delete node[last.slice(2)];else node[last]=structuredClone(value);}}
 function flagMethods(doc){return Object.assign(doc,{getFlag(id,key){return this.flags?.[id]?.[key];},async setFlag(id,key,v){this.flags??={};this.flags[id]??={};this.flags[id][key]=structuredClone(v);},async unsetFlag(id,key){delete this.flags?.[id]?.[key];},async update(data){apply(this,data);},toObject(){const {actor,parent,combatants,turns,...data}=this;return Object.fromEntries(Object.entries(data).filter(([k,v])=>typeof v!=='function'));}});}
 function fixture({count=8,hp=50,failCombat=false}={}){
- const actor={system:{attributes:{hp:{max:56,value:hp,temp:3}},traits:{size:'huge'}},getFlag:()=>null,
+ const actor={name:'Goblin',system:{attributes:{hp:{max:56,value:hp,temp:3}},traits:{size:'huge'}},getFlag:()=>null,
   async update(data){apply(this,data);},toObject(){return {name:'Goblin',system:structuredClone(this.system),items:[{_id:'weapon',name:'Scimitar'}],effects:[],flags:{}};}};
  const scene={id:'scene',width:4000,height:4000,grid:{size:100},tokens:new Map(),
   async createEmbeddedDocuments(type,data){assert.equal(type,'Token');return data.map((d,i)=>{const token=flagMethods({...structuredClone(d),id:'copy'+i,uuid:'Scene.scene.Token.copy'+i,parent:this});token.actor={system:structuredClone(d.delta.system)};this.tokens.set(token.id,token);return token;});},
@@ -17,6 +17,7 @@ function fixture({count=8,hp=50,failCombat=false}={}){
  const original=flagMethods({id:'c0',uuid:'Combat.combat.Combatant.c0',actorId:'goblin',tokenId:token.id,sceneId:scene.id,initiative:17,hidden:false});
  const combat=flagMethods({id:'combat',started:true,turn:0,round:2,combatants:new Map([['c0',original]]),turns:[original],combatant:original,
   flags:{[ID]:{ledger:{schema:3,scope:'Combat.combat',entries:[['progress',{total:1}]],turns:[{combatant:original.uuid,round:2,slot:1,hits:0,group:'Goblins',target:'target'}]}}},
+  async updateEmbeddedDocuments(type,updates){assert.equal(type,'Combatant');for(const data of updates)apply(this.combatants.get(data._id),data);},
   async createEmbeddedDocuments(type,data){if(failCombat)throw Error('combat failed');return data.map((d,i)=>{assert.equal(d.initiative,17);const c={...d,id:'new'+i,uuid:'Combat.combat.Combatant.new'+i};this.combatants.set(c.id,c);this.turns.push(c);return c;});},
   async deleteEmbeddedDocuments(type,ids){for(const id of ids)this.combatants.delete(id);this.turns=this.turns.filter(c=>!ids.includes(c.id));}});
  globalThis.game={settings:{get:()=>undefined},combats:new Map([['combat',combat]]),combat};
@@ -40,7 +41,7 @@ test('split retains original identity, gives every member initiative and carries
  assert.equal(scene.tokens.size,8);assert.equal(result.tokens[0],token);assert.equal(result.hp.reduce((a,b)=>a+b,0),50);
  assert.equal(token.actor.system.attributes.hp.max,7);assert.equal(token.actor.system.attributes.hp.value,7);
  assert.equal(token.getFlag(ID,'population').initial,1);assert.equal(token.getFlag(ID,'splitOrigin').initial,8);
- assert.equal(token.getFlag(ID,'splitLock'),undefined);assert.equal(combat.combatants.size,8);
+ assert.equal(token.getFlag(ID,'splitLock'),undefined);assert.equal(combat.combatants.size,8);assert.equal(token.name,'Goblin 1');assert.ok([...combat.combatants.values()].every(c=>!c.name.includes('(Horde)')));
  assert.ok([...combat.combatants.values()].every(c=>c.initiative===17));
  const ledger=combat.getFlag(ID,'ledger');assert.equal(ledger.turns.length,8);assert.deepEqual(ledger.entries,[['progress',{total:1}]]);
  for(const copy of result.tokens.slice(1)){assert.equal(copy.flags[ID].horde.count,1);assert.equal(copy.delta.system.attributes.hp.max,7);assert.equal(copy.delta.system.attributes.hp.temp,0);assert.equal(copy.delta.items[0]._id,'weapon');}
