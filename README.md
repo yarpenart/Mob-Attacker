@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.4.3
+# YarpenArt: Mob Attacker — 0.5.0
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,44 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.0
+
+- Default split names now include Horde and member numbers: `Goblin 1.1`, `Goblin 1.2`, then `Goblin 2.1` for another Horde.
+- Naming settings offer continuous numbering across Hordes (`Goblin 1` through `Goblin 16` for two groups of eight), random adjectives, custom templates, and numbered/adjective Horde names.
+- Durable world counters avoid restarting numbers after reload. Each base NPC has its own sequence; generated individual names also avoid collisions on the scene.
+- Related settings are organized into three GM-only menus: **Population size rules**, **HP, split and merge rules**, and **Horde and member naming**. Existing size/initiative/HP-distribution choices are preserved.
+- Optional per-member maximum HP rolls use the NPC HP formula or a custom formula. The sum becomes Horde maximum HP and stored individual maxima survive split/merge. The default remains maximum HP from the NPC sheet.
+- HUD buttons explicitly accept pointer events and rebind when the HUD switches tokens. The HUD still has only one Horde menu button.
+- Module windows have explicit light/dark palettes, readable controls, scrollable long forms, and accessible contrast for normal text, hints, inputs and disabled controls.
+
+## Naming settings
+
+Open **Configure Settings → YarpenArt: Mob Attacker → Horde and member naming**.
+
+For individual members, choose Horde.member numbering, a continuous sequence, or a custom template. Enable **Add a random adjective** to prefix names such as `Angry Goblin 1.2`. Custom templates support:
+
+| Placeholder | Meaning |
+|---|---|
+| `{name}` | Original base creature name |
+| `{horde}` | Persistent group number |
+| `{member}` | Member number within this split |
+| `{number}` | Continuous member number for this base NPC in the world |
+| `{adjective}` | Random adjective from your configured list |
+
+Examples: `{name} {horde}.{member}`, `{name} {number}`, or `{adjective} {name}`. Adjective-only/custom names that collide on the scene receive an extra numeric suffix. Supply your own adjectives separated by commas or new lines; a blank list uses built-in English/Polish words.
+
+Horde naming can stay plain (`Goblin (Horde)`), add a group number (`Goblin 2 (Horde)`), use an adjective, or use a custom template. Multi-member names always retain `(Horde)`. Existing Horde names update when naming settings are saved; already split individuals keep their assigned names until another split. Assigned adjectives do not change randomly on reload.
+
+Counters advance permanently, including when an attempted operation needs to be retried; gaps are possible and numbers are not recycled. A newly merged Horde receives a new group identity so a later split does not reuse its members' old group numbers.
+
+## Optional rolled maximum HP
+
+Open **HP, split and merge rules → New Horde maximum HP**. The default is the original NPC sheet maximum multiplied by population. **Roll maximum HP for each member** evaluates the NPC's HP formula separately for every member and sums the results; an optional custom formula overrides the NPC formula.
+
+Results are stored, not rerolled on attacks, HP edits, healing, or reload. The Horde configuration can also explicitly **Reroll member maximum HP now** while retaining damage. Stored maxima are visible in that configuration. Splitting keeps each living member's rolled maximum and distributes current HP without exceeding those individual caps. Merging same-NPC members with different rolled maxima preserves their sum and individual limits instead of rerolling them.
+
+With stored individual HP, casualties and healing use the tracked member pools. This keeps wounded individuals alive until their own HP is depleted; the initial population remains recorded. Rolling new maximum HP does not change the NPC's shared world actor.
 
 ## What changed in 0.4.3
 
@@ -34,7 +72,7 @@ The former Split Horde control is now **Split/Merge Horde**. Select multiple ind
 
 Merging adds current HP and base maximum HP, retains the active selected combatant (or the clicked token), and uses the configured highest/median/lowest initiative of the merged combatants. The other selected tokens and their initiative entries are replaced by the retained Horde. Existing target progress is not reset. If any member has spent an attack slot this round, that slot remains spent for the merged Horde; merging does not grant free attacks.
 
-Only living individual NPCs on the same scene, with the same actor, base size, base maximum HP, and attack limit can merge. The retained token supplies the resulting actor's items, resources, and effects; different stat blocks are not combined. Temporary HP is summed into the shared pool.
+Only living individual NPCs on the same scene, with the same actor, base size, and attack limit can merge. The retained token supplies the resulting actor's items, resources, and effects; different stat blocks are not combined. Temporary HP is summed into the shared pool.
 
 Merged wounded creatures retain their individual wounds internally, so two goblins at 1 HP remain two members with 2 HP total. Subsequent damage is assigned to those members in order; healing fills living members' wounds before restoring fallen members. Splitting uses the configured equal/random distribution and preserves the total HP and living count. Manually changing the population count resets this individual wound tracking to the standard pooled model.
 
@@ -108,7 +146,7 @@ A linked token is converted into an unlinked token before HP changes, so other c
 
 ### Configurable growth thresholds
 
-In **Configure Settings → YarpenArt: Mob Attacker**, set the minimum living population for each transition:
+In **Configure Settings → YarpenArt: Mob Attacker → Population size rules**, set the minimum living population for each transition:
 
 - Base Small: Medium, Large, Huge, and Gargantuan.
 - Base Medium: Large, Huge, and Gargantuan.
@@ -128,11 +166,11 @@ Medium/Small tokens occupy 1×1 grid spaces; Large 2×2, Huge 3×3, and Gargantu
 
 Open the specific token's HUD and choose **Horde → Split/Merge Horde**, or use the same menu on its sheet or by right-clicking its initiative Horde button. The Horde must have at least two living members. All living members become individual tokens, still marked as members of the same Horde.
 
-The original token and combatant are retained as the first member. New tokens receive independent HP, the creature's original size, and copies of its items/effects. Nearby free positions are used; splitting stops before changing anything if there is insufficient space within the scene. Placement avoids occupied token footprints but does not evaluate walls or terrain.
+The original token and combatant are retained as the first member. Generated individual names follow the naming settings described above. New tokens receive independent HP, the creature's original size, and copies of its items/effects. Nearby free positions are used; splitting stops before changing anything if there is insufficient space within the scene. Placement avoids occupied token footprints but does not evaluate walls or terrain.
 
 By default, every member keeps the original Horde initiative. Set **Split Horde: initiative** to **Roll new initiative for each creature** to reroll all members through the system instead, including the original retained token. Already spent attack slots for the current round are inherited, preventing free attacks by splitting after attacking. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
 
-**Split Horde: HP distribution** is a world setting:
+**Split Horde: HP distribution**, inside **HP, split and merge rules**, is a world setting:
 
 - **As evenly as possible:** integer HP values differ by at most one.
 - **Random, preserving total HP:** each member receives between 1 and its base maximum HP. The sum remains equal to the original Horde's current HP. A full-health Horde therefore splits into full-health members in either mode.
