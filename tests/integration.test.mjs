@@ -116,7 +116,7 @@ test('attack dialog opens with real v14 mode metadata instead of key.split error
  CONFIG.ChatMessage={modes:{public:{label:'CHAT.Public'},gm:{label:'CHAT.GM'}}};
  const original=game.i18n.localize;
  game.i18n.localize=key=>{if(typeof key!=='string')throw Error('key.split is not a function');return key;};
- const originalGet=game.settings.get;game.settings.get=(_scope,key)=>{assert.equal(key,'messageMode');return 'public';};
+ const originalGet=game.settings.get;game.settings.get=(scope,key)=>{if(scope!=='core')return originalGet(scope,key);assert.equal(key,'messageMode');return 'public';};
  let content;
  foundry.applications={api:{DialogV2:{wait:async options=>{content=options.content;return null;}}}};
  assert.equal(await attackDialog({doc,actor}),null);
@@ -425,4 +425,82 @@ test('a new encounter session cannot reuse previous attack progress on the same 
 test('an open sheet cannot lend a non-equivalent attack to a different active Horde NPC',async()=>{
  const a=initiativeGoblin(1),b=initiativeGoblin(2);b.actor.items.clear();owner.combatant=b;game.user.targets=new Set([{document:target}]);
  await assert.rejects(interceptAttack.call(a.attack,async()=>{}),/noEquivalentAttack/);assert.equal(damageCalls.length,0);assert.equal(flags.size,0);
+});
+
+function combinedFixture(){
+ const previous={dice:game.dnd5e,get:game.settings.get,toMessage:FakeRoll.toMessage},packets=[],inputs=[];
+ game.dnd5e={dice:{aggregateDamageRolls(rolls,options){inputs.push({rolls,options});const groups=new Map();for(const roll of rolls){const key=JSON.stringify([roll.options.type,[...(roll.options.properties??[])].sort()]);const group=groups.get(key)??{total:0,options:roll.options};group.total+=roll.total;groups.set(key,group);}return [...groups.values()];}}};
+ FakeRoll.toMessage=async(rolls,data,options)=>{packets.push({rolls,data,options});return {id:'packet'};};
+ const roll=(total,type='slashing',properties=['mgc'])=>({total,options:{type,properties},toJSON(){return {class:'DamageRoll',total:this.total,options:this.options};}});
+ return {packets,inputs,roll,restore(){game.dnd5e=previous.dice;game.settings.get=previous.get;if(previous.toMessage)FakeRoll.toMessage=previous.toMessage;else delete FakeRoll.toMessage;}};
+}
+test('30 members with 15 hits post one native damage packet, retaining independently rolled totals and visibility',async()=>{
+ const fixture=combinedFixture();try{
+ game.settings.get=(id,key)=>key==='combineDamage'?true:fixtureOriginalGet(id,key);const fixtureOriginalGet=(_id,key)=>['promptUnmarked','promptMarked'].includes(key)?false:'publicroll';
+ let hits=0;const native={...activity,getDamageConfig:()=>({rolls:[{parts:['4'],options:{type:'slashing'}}]}),rollDamage:async(config,dialog,message)=>{
+  assert.equal(config._yaHordeResolvedDamage,true);assert.equal(message.create,false);assert.equal(message.rollMode,'blindroll');return [fixture.roll(++hits)];
+ }};
+ const result=await resolve({doc,actor,activity:native,options:{...opts,count:30,bonus:'7'}});
+ assert.equal(result.hits,15);assert.equal(hits,15);assert.equal(fixture.packets.length,1);assert.equal(fixture.inputs[0].rolls.length,15);
+ assert.deepEqual(fixture.inputs[0].options,{respectProperties:true});assert.equal(fixture.packets[0].rolls[0].total,120);assert.equal(fixture.packets[0].options.rollMode,'blindroll');
+ assert.equal(fixture.packets[0].data.flags.dnd5e.roll.type,'damage');assert.deepEqual(messages[0].whisper,['gm']);assert.doesNotMatch(fixture.packets[0].data.flavor,/AC|threshold|Horde/);
+ }finally{fixture.restore();}
+});
+test('one packet preserves damage types and different properties across all hits and Multiattack slots',async()=>{
+ const fixture=combinedFixture();try{
+ let calls=0;const native={...activity,getDamageConfig:()=>({rolls:[{parts:['4'],options:{type:'slashing'}}]}),rollDamage:async(_config,_dialog,message)=>{assert.equal(message.create,false);calls++;return [fixture.roll(3,'slashing',calls%2?['mgc']:[]),fixture.roll(2,'fire',[])];}};
+ const result=await resolve({doc,actor,activity:native,options:{...opts,count:8,attacks:2,combineDamage:true}});
+ assert.equal(result.hits,5);assert.equal(calls,5);assert.equal(fixture.packets.length,1);
+ assert.deepEqual(fixture.packets[0].rolls.map(r=>[r.options.type,r.total]),[['slashing',9],['fire',10],['slashing',6]]);
+ }finally{fixture.restore();}
+});
+test('explicitly disabling aggregation overrides its world default and keeps separate native rolls',async()=>{
+ const fixture=combinedFixture();try{
+ game.settings.get=(_id,key)=>key==='combineDamage'?true:['promptUnmarked','promptMarked'].includes(key)?false:'publicroll';
+ await resolve({doc,actor,activity,options:{...opts,combineDamage:false}});assert.equal(damageCalls.length,2);assert.equal(fixture.packets.length,0);assert.equal(damageCalls[0][2].create,undefined);
+ }finally{fixture.restore();}
+});
+test('a miss creates no empty damage packet and does not require the aggregation API',async()=>{
+ await resolve({doc,actor,activity,options:{...opts,count:1,combineDamage:true}});assert.equal(damageCalls.length,0);
+});
+test('missing aggregation support fails before spending ammunition or attack counters',async()=>{
+ actor.items.set('arrows',{id:'arrows',system:{quantity:100}});
+ try{await assert.rejects(resolve({doc,actor,activity,options:{...opts,combineDamage:true,ammunition:'arrows'}}),/damagePacketUnavailable/);assert.equal(flags.size,0);assert.equal(actor.items.get('arrows').system.quantity,100);}
+ finally{actor.items.clear();}
+});
+test('an interrupted batch posts its completed damage once and never rerolls successful hits',async()=>{
+ const fixture=combinedFixture();try{
+ let calls=0;const native={...activity,rollDamage:async()=>{if(++calls===2)throw Error('interrupted');return [fixture.roll(6,'fire',[])];}};
+ await assert.rejects(resolve({doc,actor,activity:native,options:{...opts,combineDamage:true}}),/interrupted/);
+ assert.equal(calls,2);assert.equal(fixture.packets.length,1);assert.equal(fixture.packets[0].rolls[0].total,6);assert.equal(fixture.packets[0].data.flags['yarpenart-mob-attacker'].partial,true);
+ assert.equal(messages[0]['flags.yarpenart-mob-attacker.collectedDamage'].completed,1);
+ }finally{fixture.restore();}
+});
+test('manual Horde damage is collected into one native packet without per-hit chat messages',async()=>{
+ const fixture=combinedFixture(),previous=CONFIG.Dice.DamageRoll;try{
+ CONFIG.Dice.DamageRoll=class extends FakeRoll{constructor(formula,data,options){super(formula);this.options=options??{};}async toMessage(){throw Error('per-hit message must be suppressed');}toJSON(){return {formula:this.formula,total:this.total,options:this.options};}};
+ await resolve({doc,actor,options:{...opts,damage:'4',combineDamage:true}});
+ assert.equal(fixture.packets.length,1);assert.equal(fixture.packets[0].rolls[0].total,8);
+ }finally{CONFIG.Dice.DamageRoll=previous;fixture.restore();}
+});
+test('a frozen stronger damage profile is collected without posting its own message',async()=>{
+ const fixture=combinedFixture(),build=FakeRoll.build;try{
+ const strong={...activity,getDamageConfig:()=>({rolls:[{parts:['12'],options:{type:'fire'}}]})},weak={...activity,getDamageConfig:()=>({rolls:[{parts:['4'],options:{type:'cold'}}]})};
+ FakeRoll.build=async(config,dialog,message)=>{assert.equal(message.create,false);assert.equal(config.rolls[0].parts[0],'12');return [fixture.roll(12,'fire',[])];};
+ await resolve({doc:{...doc,uuid:'strong'},actor,activity:strong,options:{...opts,count:2,combineDamage:true}});
+ await resolve({doc:{...doc,uuid:'weak'},actor,activity:weak,options:{...opts,count:1,combineDamage:true}});
+ assert.equal(fixture.packets.length,1);assert.equal(fixture.packets[0].rolls[0].options.type,'fire');assert.equal(fixture.packets[0].rolls[0].total,12);assert.equal(damageCalls.length,0);
+ }finally{FakeRoll.build=build;fixture.restore();}
+});
+test('a packet-posting failure is not retried and keeps all rolled values on the private result',async()=>{
+ const fixture=combinedFixture();try{
+ let posts=0;FakeRoll.toMessage=async()=>{posts++;throw Error('message failed');};
+ const native={...activity,rollDamage:async()=>[fixture.roll(4)]};
+ await assert.rejects(resolve({doc,actor,activity:native,options:{...opts,combineDamage:true}}),/message failed/);
+ assert.equal(posts,1);assert.equal(messages[0]['flags.yarpenart-mob-attacker.collectedDamage'].rolls.length,2);assert.match(messages[0].content,/HORDE.combinedPartial/);
+ }finally{fixture.restore();}
+});
+test('a damage-free attack can count hits in combined mode without the aggregation API',async()=>{
+ const native={...activity,getDamageConfig:()=>({rolls:[]})};
+ const result=await resolve({doc,actor,activity:native,options:{...opts,combineDamage:true}});assert.equal(result.hits,2);assert.equal(damageCalls.length,0);
 });
