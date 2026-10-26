@@ -13,3 +13,6 @@
 .ya-horde-button.active { background:#5b3468; border-color:#d0a1df; }
 .ya-horde-card { border:1px solid #7c688f; border-radius:5px; padding:8px; }
 .ya-horde-card p { margin:4px 0; }
+.window-header .header-elements > [data-ya-horde-key="hordeMenu"] { margin-inline-end:8px; }
+.ya-horde-menu footer { display:flex; flex-wrap:wrap; gap:6px; }
+.ya-horde-menu footer button { flex:1 1 45%; }
