@@ -53,7 +53,7 @@
     "selectMany": "Zaznacz przynajmniej jeden token NPC.",
     "markedMany": "Oznaczono {count} tokenów NPC jako jedną hordę.",
     "unmarkedMany": "Usunięto oznaczenie hordy z {count} tokenów NPC.",
-    "quickToggleHint": "Kliknij, aby przełączyć hordę. Prawy klik otwiera wszystkie opcje hordy.",
+    "quickToggleHint": "Kliknij, aby potwierdzić zmianę oznaczenia hordy. Prawy przycisk otwiera wszystkie opcje hordy.",
     "promptMarked": "Pokazuj okno przy każdym ataku oznaczonej hordy",
     "promptMarkedHint": "Wyłączone: od razu używaj wskazanego celu i obrażeń ataku z karty. Jeśli nie wybrano jednego celu, otworzy się okno GM.",
     "attackLimit": "Ataki na turę w inicjatywie",
@@ -162,6 +162,13 @@
     "summaryUnit": "Rodzaj jednostki",
     "summaryTotal": "Łącznie",
     "summarySurvived": "Ocalało",
-    "summaryKilled": "Zginęło"
+    "summaryKilled": "Zginęło",
+    "confirmMarkHordeTitle": "Oznaczyć jako hordę?",
+    "confirmUnmarkHordeTitle": "Usunąć oznaczenie hordy?",
+    "confirmMarkHorde": "Czy oznaczyć {name} jako część hordy?",
+    "confirmUnmarkHorde": "Czy usunąć oznaczenie hordy z {name}?",
+    "confirmHordeChange": "Potwierdź zmianę",
+    "selectedUnits": "zaznaczonych NPC ({count})",
+    "hordeStateChanged": "Oznaczenie hordy zmieniło się w czasie potwierdzania. Kliknij ponownie, aby sprawdzić aktualny stan."
   }
 }

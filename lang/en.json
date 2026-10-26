@@ -53,7 +53,7 @@
     "selectMany": "Select at least one NPC token.",
     "markedMany": "Marked {count} NPC tokens as one Horde.",
     "unmarkedMany": "Removed Horde marking from {count} NPC tokens.",
-    "quickToggleHint": "Click to toggle Horde. Right-click for all Horde actions.",
+    "quickToggleHint": "Click to confirm a Horde membership change. Right-click for all Horde actions.",
     "promptMarked": "Show a dialog on each marked Horde attack",
     "promptMarkedHint": "Off: use the selected target and normal attack damage immediately. If there is no single target, the GM target dialog still opens.",
     "attackLimit": "Attacks per initiative turn",
@@ -162,6 +162,13 @@
     "summaryUnit": "Unit type",
     "summaryTotal": "Total",
     "summarySurvived": "Survived",
-    "summaryKilled": "Killed"
+    "summaryKilled": "Killed",
+    "confirmMarkHordeTitle": "Mark as Horde?",
+    "confirmUnmarkHordeTitle": "Remove Horde marking?",
+    "confirmMarkHorde": "Mark {name} as part of a Horde?",
+    "confirmUnmarkHorde": "Remove Horde marking from {name}?",
+    "confirmHordeChange": "Confirm change",
+    "selectedUnits": "selected NPCs ({count})",
+    "hordeStateChanged": "Horde membership changed while the confirmation was open. Click again to review the current state."
   }
 }
