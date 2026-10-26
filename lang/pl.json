@@ -114,7 +114,7 @@
     "mergeDone": "Scalono {count} istot w jeden token hordy.",
     "mergeSelect": "Zaznacz co najmniej dwa pojedyncze tokeny NPC, aby je scalić, albo użyj przycisku na jednym tokenie hordy, aby go rozdzielić.",
     "mergeInitiative": "Inicjatywa scalonej hordy",
-    "mergeInitiativeHint": "Wybierz najwyższą, medianę lub najniższą inicjatywę scalanych istot. Nierzucone wpisy są pomijane. Przy parzystej liczbie wyników mediana jest średnią dwóch środkowych wartości.",
+    "mergeInitiativeHint": "Wybierz najwyższą, medianę lub najniższą inicjatywę scalanych istot. Nierzucone wpisy są pomijane. Przy parzystej liczbie wyników mediana wybiera wyższą z dwóch środkowych wartości.",
     "initiativeHighest": "Najwyższa",
     "initiativeMedian": "Mediana",
     "initiativeLowest": "Najniższa"
