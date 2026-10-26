@@ -30,15 +30,18 @@ export function splitPositions(doc,count,width,scene) {
   }
   throw Error('Not enough free scene space to split this Horde');
 }
-export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},random=Math.random}={}) {
-  requireAuthority();await syncPopulation(doc);
+export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},random=Math.random,initiativeMode}={}) {
+  requireAuthority();
+  initiativeMode??=game.settings.get(ID,'splitInitiative')??'shared';
+  if(!['shared','reroll'].includes(initiativeMode))throw Error('Invalid split Horde initiative mode');
+  await syncPopulation(doc);
   const pop=doc.getFlag(ID,'population'),config=doc.getFlag(ID,'horde');
   if(!config?.enabled||!pop||pop.current<2)throw Error('A Horde needs at least two living creatures to split');
   if(doc.getFlag(ID,'splitLock'))throw Error('This Horde is already being split');
   const scene=doc.parent,count=pop.current,hp=distributeHP(doc.actor.system.attributes.hp.value,count,pop.baseHP,mode,random);
   const shape=hordeSize(1,pop.baseSize),positions=splitPositions(doc,count,shape.width,scene);
   const actorData=doc.actor.toObject(),template=doc.toObject();
-  const provenance={source:doc.uuid,initial:pop.initial,count,totalHP:hp.reduce((a,b)=>a+b,0),mode};
+  const provenance={source:doc.uuid,initial:pop.initial,count,totalHP:hp.reduce((a,b)=>a+b,0),mode,initiativeMode};
   const make=(i)=>{
     const data=foundry.utils.deepClone(template);delete data._id;delete data._stats;
     data.actorLink=false;data.name=`${pop.baseName} ${i+1}`;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
@@ -52,7 +55,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     return data;
   };
   const combats=Array.from(game.combats?.values?.() ?? (game.combat?[game.combat]:[]));
-  const parents=combats.flatMap(combat=>Array.from(combat.combatants?.values?.() ?? []).filter(c=>c.tokenId===doc.id && (!c.sceneId||c.sceneId===scene.id)).map(c=>({combat,c})));
+  const parents=combats.flatMap(combat=>Array.from(combat.combatants?.values?.() ?? []).filter(c=>c.tokenId===doc.id && (!c.sceneId||c.sceneId===scene.id)).map(c=>({combat,c,original:{_id:c.id,name:c.name,initiative:c.initiative}})));
   const active=game.combat?.combatant?.id;
   let retainLock=false;
   const newTokens=[],newCombatants=[],ledgers=new Map();
@@ -62,7 +65,7 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     newTokens.push(...await scene.createEmbeddedDocuments('Token',Array.from({length:count-1},(_,i)=>make(i+1))));
     for(const {combat,c} of parents) {
       const data=newTokens.map(token=>{const d=c.toObject();delete d._id;delete d._stats;return {...d,tokenId:token.id,sceneId:scene.id,actorId:token.actorId,name:token.name,initiative:c.initiative};});
-      const created=await combat.createEmbeddedDocuments('Combatant',data);newCombatants.push({combat,ids:created.map(c=>c.id)});
+      const created=await combat.createEmbeddedDocuments('Combatant',data);newCombatants.push({combat,ids:created.map(c=>c.id),original:c.id});
       const ledger=combat.getFlag(ID,'ledger');
       if(ledger?.turns?.length) {
         const used=ledger.turns.filter(row=>row.combatant===(c.uuid??c.id));
@@ -77,6 +80,9 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
       [`flags.${ID}.horde`]:first.flags[ID].horde,[`flags.${ID}.population`]:first.flags[ID].population,
       [`flags.${ID}.splitOrigin`]:provenance});
     await syncHordeName(doc,1,first.flags[ID].population);
+    if(initiativeMode==='reroll')for(const {combat,ids,original} of newCombatants) {
+      await combat.rollInitiative([original,...ids],{updateTurn:true});
+    }
     // Equal initiative sorting can reorder entries; preserve the active combatant.
     if(active&&game.combat?.started){const turn=game.combat.turns.findIndex(c=>c.id===active);if(turn>=0&&turn!==game.combat.turn)await game.combat.update({turn});}
     return {tokens:[doc,...newTokens],hp};
@@ -89,6 +95,8 @@ export async function splitToken(doc,{mode='equal',requireAuthority=()=>{},rando
     } catch(restoreError) {retainLock=true;throw new AggregateError([error,restoreError],'Split interrupted; copies retained. Check the original Horde before retrying.');}
     for(const {combat,ids} of newCombatants)await combat.deleteEmbeddedDocuments('Combatant',ids);
     if(newTokens.length)await scene.deleteEmbeddedDocuments('Token',newTokens.map(t=>t.id));
+    for(const {combat,original} of parents)await combat.updateEmbeddedDocuments('Combatant',[original]);
+    if(active&&game.combat?.started){const turn=game.combat.turns.findIndex(c=>c.id===active);if(turn>=0&&turn!==game.combat.turn)await game.combat.update({turn});}
     for(const [combat,ledger] of ledgers) {if(ledger)await combat.setFlag(ID,'ledger',ledger);else await combat.unsetFlag(ID,'ledger');}
     throw error;
   } finally {if(!retainLock)await doc.unsetFlag(ID,'splitLock');}
