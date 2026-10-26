@@ -117,6 +117,10 @@
     "mergeInitiativeHint": "Choose the highest, median or lowest rolled initiative of the merged creatures. Unrolled entries are ignored. With an even number of results, median uses the higher of the two middle values.",
     "initiativeHighest": "Highest",
     "initiativeMedian": "Median",
-    "initiativeLowest": "Lowest"
+    "initiativeLowest": "Lowest",
+    "splitInitiative": "Split Horde: initiative",
+    "splitInitiativeHint": "Keep the Horde’s initiative for all members, or roll fresh native initiative for every member, including the retained original token. Applies to existing combat entries.",
+    "splitInitiativeShared": "Keep shared initiative",
+    "splitInitiativeReroll": "Roll new initiative for each creature"
   }
 }

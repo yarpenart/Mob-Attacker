@@ -117,6 +117,10 @@
     "mergeInitiativeHint": "Wybierz najwyższą, medianę lub najniższą inicjatywę scalanych istot. Nierzucone wpisy są pomijane. Przy parzystej liczbie wyników mediana wybiera wyższą z dwóch środkowych wartości.",
     "initiativeHighest": "Najwyższa",
     "initiativeMedian": "Mediana",
-    "initiativeLowest": "Najniższa"
+    "initiativeLowest": "Najniższa",
+    "splitInitiative": "Rozdzielanie hordy: inicjatywa",
+    "splitInitiativeHint": "Zachowaj inicjatywę hordy dla wszystkich istot albo rzuć nową inicjatywę każdej z nich, także istocie pozostającej w oryginalnym tokenie. Dotyczy istniejących wpisów w walce.",
+    "splitInitiativeShared": "Zachowaj wspólną inicjatywę",
+    "splitInitiativeReroll": "Rzuć nową inicjatywę każdej istocie"
   }
 }
