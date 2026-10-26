@@ -73,9 +73,10 @@ test('the retained combatant cannot gain a free attack slot by merging',async()=
 });
 
  test('initiative selection handles odd/even medians, fractions, zero, negatives and unrolled entries',()=>{
- assert.equal(mergedInitiative([17,8,12]),12);assert.equal(mergedInitiative([20,8,17,12]),14.5);
- assert.equal(mergedInitiative([null,undefined,NaN,Infinity]),null);assert.equal(mergedInitiative([null,0,-2]),-1);
+ assert.equal(mergedInitiative([17,8,12]),12);assert.equal(mergedInitiative([20,8,17,12]),17);
+ assert.equal(mergedInitiative([null,undefined,NaN,Infinity]),null);assert.equal(mergedInitiative([null,0,-2]),0);
  assert.equal(mergedInitiative([8,17,12],'highest'),17);assert.equal(mergedInitiative([8,17,12],'lowest'),8);
+ assert.equal(mergedInitiative([15,12,10,7,5,1]),10);assert.equal(mergedInitiative([12,10,9,7,6,5,1]),7);
  assert.equal(mergedInitiative([7,7,7]),7);assert.throws(()=>mergedInitiative([1],'invalid'));
  });
  test('merging honors the world initiative setting in every selection mode',async()=>{
