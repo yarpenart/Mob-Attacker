@@ -53,7 +53,7 @@
     "selectMany": "Select at least one NPC token.",
     "markedMany": "Marked {count} NPC tokens as one Horde.",
     "unmarkedMany": "Removed Horde marking from {count} NPC tokens.",
-    "quickToggleHint": "Click to toggle Horde. Right-click to configure size and group.",
+    "quickToggleHint": "Click to toggle Horde. Right-click for all Horde actions.",
     "promptMarked": "Show a dialog on each marked Horde attack",
     "promptMarkedHint": "Off: use the selected target and normal attack damage immediately. If there is no single target, the GM target dialog still opens.",
     "attackLimit": "Attacks per initiative turn",
@@ -109,6 +109,9 @@
     "size_med_huge": "Base Medium → Huge: minimum creatures",
     "size_med_grg": "Base Medium → Gargantuan: minimum creatures",
     "size_lg_huge": "Base Large → Huge: minimum creatures",
-    "size_lg_grg": "Base Large → Gargantuan: minimum creatures"
+    "size_lg_grg": "Base Large → Gargantuan: minimum creatures",
+    "splitMergeHorde": "Split/Merge Horde",
+    "mergeDone": "Merged {count} creatures into one Horde token.",
+    "mergeSelect": "Select at least two individual NPC tokens to merge, or use this button on one Horde token to split it."
   }
 }

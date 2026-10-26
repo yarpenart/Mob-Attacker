@@ -53,7 +53,7 @@
     "selectMany": "Zaznacz przynajmniej jeden token NPC.",
     "markedMany": "Oznaczono {count} tokenów NPC jako jedną hordę.",
     "unmarkedMany": "Usunięto oznaczenie hordy z {count} tokenów NPC.",
-    "quickToggleHint": "Kliknij, aby oznaczyć / odznaczyć hordę. Prawy przycisk: liczebność i grupa.",
+    "quickToggleHint": "Kliknij, aby przełączyć hordę. Prawy klik otwiera wszystkie opcje hordy.",
     "promptMarked": "Pokazuj okno przy każdym ataku oznaczonej hordy",
     "promptMarkedHint": "Wyłączone: od razu używaj wskazanego celu i obrażeń ataku z karty. Jeśli nie wybrano jednego celu, otworzy się okno GM.",
     "attackLimit": "Ataki na turę w inicjatywie",
@@ -109,6 +109,9 @@
     "size_med_huge": "Bazowo Medium → Huge: minimalna liczba istot",
     "size_med_grg": "Bazowo Medium → Gargantuan: minimalna liczba istot",
     "size_lg_huge": "Bazowo Large → Huge: minimalna liczba istot",
-    "size_lg_grg": "Bazowo Large → Gargantuan: minimalna liczba istot"
+    "size_lg_grg": "Bazowo Large → Gargantuan: minimalna liczba istot",
+    "splitMergeHorde": "Rozdziel/scal hordę",
+    "mergeDone": "Scalono {count} istot w jeden token hordy.",
+    "mergeSelect": "Zaznacz co najmniej dwa pojedyncze tokeny NPC, aby je scalić, albo użyj przycisku na jednym tokenie hordy, aby go rozdzielić."
   }
 }
