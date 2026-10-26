@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.3
+# YarpenArt: Mob Attacker — 0.5.4
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,10 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.4
+
+Left-clicking a combat tracker Horde button requires explicit confirmation before either enabling or disabling Horde membership. Cancel is the default; closing the dialog also leaves membership unchanged. The tracker’s selected-token toggle uses the same safeguard. Duplicate clicks share one pending prompt per token, and an outdated prompt cannot undo a newer membership change. Right-click still opens the full Horde menu.
 
 ## What changed in 0.5.3
 
@@ -107,7 +111,7 @@ Tokens representing more than one living creature are named **Base creature name
 
 Select NPC tokens and click the group icon on the Token toolbar, or use `/horde toggle`. If all selected tokens are marked, the action unmarks them; otherwise, it marks all of them. Player characters are ignored.
 
-Each NPC combatant has a **Horde** toggle in initiative. Click to toggle; right-click to open the full Horde menu. A token's HUD has one **Horde** button that opens all actions, including Split/Merge Horde. On the NPC sheet, the single **Horde** button opens all actions.
+Each NPC combatant has a **Horde** toggle in initiative. Click to request a confirmed membership change; right-click to open the full Horde menu. A token's HUD has one **Horde** button that opens all actions, including Split/Merge Horde. On the NPC sheet, the single **Horde** button opens all actions.
 
 Use the same Horde identifier for members that should share progress. Eight separate goblins should each represent one creature; one token representing eight goblins should have a count of eight. Native attacks with different attack bonuses retain separate progress because they use different table thresholds.
 
