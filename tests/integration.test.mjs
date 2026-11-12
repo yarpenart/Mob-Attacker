@@ -393,7 +393,7 @@ test('simultaneous clicks on one sheet consume only one initiative attack',async
  const previous=foundry.applications;let opened;
  foundry.applications={api:{DialogV2:{wait:async options=>{opened=options;return null;}}}};
  try {const npc=initiativeGoblin(1);await hordeMenu(npc.token,npc.actor);
- assert.deepEqual(opened.buttons.map(b=>b.action),['configure','force','save','split']);
+ assert.deepEqual(opened.buttons.map(b=>b.action),['configure','opportunity','force','save','split']);
  assert.equal(opened.buttons.find(b=>b.action==='split').disabled,true);
  } finally {foundry.applications=previous;}
  });
@@ -503,4 +503,16 @@ test('a packet-posting failure is not retried and keeps all rolled values on the
 test('a damage-free attack can count hits in combined mode without the aggregation API',async()=>{
  const native={...activity,getDamageConfig:()=>({rolls:[]})};
  const result=await resolve({doc,actor,activity:native,options:{...opts,combineDamage:true}});assert.equal(result.hits,2);assert.equal(damageCalls.length,0);
+});
+test('opportunity attack uses its source during a player turn and shares target progress without spending turn slots',async()=>{
+ owner.combatant={id:'player',actor:{type:'character'}};
+ const first=await resolve({doc,actor,activity,options:{...opts,count:1,opportunity:true}});
+ const second=await resolve({doc,actor,activity,options:{...opts,count:2,opportunity:true}});
+ assert.equal(first.hits,0);assert.equal(second.hits,1);
+ assert.deepEqual(flags.get('ledger').turns,[]);
+});
+test('defeated status updates do not rebuild or resize a horde token',async()=>{
+ const {populationActorUpdated}=await import('../scripts/population.mjs');
+ const token={getFlag:(_id,key)=>key==='population'?{}:null,update:async()=>{throw Error('unexpected token update');}};
+ await populationActorUpdated({token,system:{attributes:{hp:{value:0}}}},{effects:['dead'],statuses:['dead']});
 });

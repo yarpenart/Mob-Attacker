@@ -26,13 +26,13 @@ test('the token HUD keeps one functioning Horde menu and removes old split contr
  for(const key of ['splitHorde','splitMergeHorde']){const old=new Element('button');old.dataset.yaHordeKey=key;column.append(old);}
  renderHUD({object:{document:doc,actor}},root);renderHUD({document:doc},root);
  const buttons=column.querySelectorAll('[data-ya-horde-key]');assert.equal(buttons.length,1);assert.equal(buttons[0].textContent,'Horde');
- await click(buttons[0],'click');assert.deepEqual(opened.at(-1).buttons.map(b=>b.action),['configure','force','save','split']);
+ await click(buttons[0],'click');assert.deepEqual(opened.at(-1).buttons.map(b=>b.action),['configure','opportunity','force','save','split']);
 });
 test('right-clicking initiative Horde opens the same full action menu',async()=>{
  const {actor,doc}=npc(),row=new Element(),controls=new Element('.combatant-controls'),root=new Element();row.dataset.combatantId='c';row.append(controls);root.append(row);
  const combat={combatants:new Map([['c',{actor,token:doc}]])};renderTracker({viewed:combat},root);
  const button=controls.querySelector('[data-ya-horde-key="configure"]');assert.equal(button.textContent,'Horde ×8');
- await click(button,'contextmenu');assert.deepEqual(opened.at(-1).buttons.map(b=>b.action),['configure','force','save','split']);
+ await click(button,'contextmenu');assert.deepEqual(opened.at(-1).buttons.map(b=>b.action),['configure','opportunity','force','save','split']);
  assert.equal(opened.at(-1).buttons.find(b=>b.action==='split').disabled,false);
 });
 test('reusing the same token HUD binds its button to the new token',async()=>{
