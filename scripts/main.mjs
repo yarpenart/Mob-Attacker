@@ -295,7 +295,7 @@ async function consumeAmmunition(activity, actor, options, attempts) {
 export async function resolve({doc,actor,activity,options}) {
   return enqueue(async () => {
     requireAuthority();
-    const context=game.combat?.started && game.combat.combatant ? attackContext(activity,actor) : null;
+    const context=!options.opportunity && game.combat?.started && game.combat.combatant ? attackContext(activity,actor) : null;
     if (context) {
       if (options.turnGuard && JSON.stringify(options.turnGuard)!==JSON.stringify(context.guard)) throw new Error(t('turnChanged'));
       ({doc,actor,activity}=context);
@@ -321,7 +321,7 @@ export async function resolve({doc,actor,activity,options}) {
     if (!activity) new CONFIG.Dice.DamageRoll(options.damage, actor.getRollData());
     const profile=await damageProfile(activity,actor,options);
     // Turn slots stop duplicate attempts; all slots feed one target bucket.
-    const source=owner.documentName === 'Combat' ? `${context?.guard.combatant ?? doc.uuid}::round:${owner.round}`
+    const source=options.opportunity ? `${doc.uuid}::reaction:${foundry.utils.randomID()}` : owner.documentName === 'Combat' ? `${context?.guard.combatant ?? doc.uuid}::round:${owner.round}`
       : `${doc.uuid}::attempt:${foundry.utils.randomID()}`;
     const firstLane = reservation?.firstLane ?? options.lane ?? nextLane(state,options.group,source);
     const plans = [];
@@ -430,6 +430,19 @@ export async function interceptDamage(wrapped,config={},...args) {
   ui.notifications.warn(t('damageThroughAttack'));
   return null;
 }
+export async function opportunityAttack(doc) {
+  requireAuthority();
+  const actor=doc.actor;
+  if (!actor || !settings(doc,actor).enabled) throw Error(t('npcOnly'));
+  const activities=Array.from(actor.items?.values?.() ?? []).flatMap(item=>Array.from(item.system.activities?.values?.() ?? [])).filter(a=>a.type==='attack');
+  if (!activities.length) throw Error(t('noAttack'));
+  const picked=await dialog(t('opportunityAttack'),`<p>${esc(t('opportunityHint'))}</p>`+select('chooseAttack','attack',activities.map((a,i)=>[i,`${a.item.name} — ${a.name}`]),0),form=>value(form,'attack'));
+  if (picked==null || picked==='cancel') return;
+  const activity=activities[Number(picked)];
+  const options=await attackDialog({doc,actor,activity,config:{}});
+  if (!options || options==='cancel' || !options.enabled) return;
+  return resolve({doc,actor,activity,options:{...options,attacks:1,opportunity:true,remember:false}});
+}
 export async function forceFromSheet(actor) {
   requireAuthority();
   const activities=Array.from(actor.items?.values?.() ?? actor.items ?? [])
@@ -529,10 +542,12 @@ export async function hordeMenu(doc,actor=doc.actor ?? doc) {
   const action=await foundry.applications.api.DialogV2.wait({window:{title:`Horde — ${actor.name}`},classes:['ya-horde-dialog','ya-horde-menu'],
     content:`<p>${esc(s.enabled ? t('menuPopulation',{count:s.count}) : t('menuUnmarked'))}</p>`,
     buttons:[{action:'configure',label:t('configure'),default:true,callback:()=> 'configure'},
+      {action:'opportunity',label:t('opportunityAttack'),disabled:!s.enabled,callback:()=> 'opportunity'},
       {action:'force',label:t('forceHit'),disabled:!s.enabled,callback:()=> 'force'},
       {action:'save',label:t('hordeSave'),disabled:!s.enabled,callback:()=> 'save'},
       {action:'split',label:t('splitMergeHorde'),disabled:!doc.actor||(!(s.enabled&&s.count>1)&&selectedMergeMembers(doc).length<2),callback:()=> 'split'}],rejectClose:false});
   if(action==='configure')return configure(doc,actor);
+  if(action==='opportunity')return opportunityAttack(doc);
   if(action==='force')return forceFromSheet(actor);
   if(action==='save')return saves.open(actor);
   if(action==='split')return splitMergeHorde(doc);

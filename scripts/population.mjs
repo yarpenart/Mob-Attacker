@@ -131,6 +131,9 @@ export async function syncPopulation(doc,options={}) {
 }
 export async function populationActorUpdated(actor,changes,options={}) {
   if (options.yaHordePopulation) return;
+  // Status/effect updates (including defeated) must not resize or rebuild tokens.
+  const hpChanged=Object.keys(changes??{}).some(key=>key==='system.attributes.hp'||key.startsWith('system.attributes.hp.')) || changes?.system?.attributes?.hp!==undefined;
+  if (!hpChanged) return;
   const doc=actor.token;
   if(doc?.getFlag(ID,'mergeLock')||doc?.getFlag(ID,'splitLock'))return;
   if (doc?.getFlag(ID,'population')) await syncPopulation(doc);
