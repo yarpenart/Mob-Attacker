@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.7
+# YarpenArt: Mob Attacker — 0.5.8
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,12 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.8
+
+Use **Horde → Opportunity attack / reaction** on the reacting token. Choose its attack and target. It contributes to target progress without using normal turn slots or redirecting to the active combatant. The GM checks reach and reaction availability; no automatic reaction resource is consumed. The token’s living population participates.
+
+Actor status/effect updates without HP changes no longer rebuild Horde population or resize tokens. This removes an unnecessary update path when marking defeated; the reported corner movement has not been reproduced in live Foundry.
 
 ## What changed in 0.5.7
 

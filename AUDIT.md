@@ -69,3 +69,7 @@ Optional combined damage uses native `game.dnd5e.dice.aggregateDamageRolls` with
 ## 0.5.7 addendum — combined damage default
 
 Combined Horde damage now registers with `default: true`. Existing saved world preferences are preserved. Updated both language hints and documentation. All 152 automated tests pass; live Foundry/Forge remains unverified.
+
+## 0.5.8 addendum — explicit reactions and status updates
+
+Added a token-specific opportunity attack action that contributes to target progress without reserving normal turn slots or redirecting to the active combatant. The GM adjudicates reaction availability and reach. Non-HP actor updates no longer trigger population synchronization. 154 automated tests pass. The reported movement of defeated tokens remains unconfirmed in live Foundry; this update removes unnecessary population writes on status changes.
