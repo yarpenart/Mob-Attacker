@@ -133,3 +133,13 @@ test('a failed split restores original counts with in-place recursive document f
  assert.equal(token.getFlag(ID,'population').initial,8);assert.equal(token.getFlag(ID,'horde').count,8);assert.equal(actor.system.attributes.hp.max,56);assert.equal(actor.system.attributes.hp.value,50);assert.equal(scene.tokens.size,1);
  await syncPopulation(token);assert.equal(actor.system.attributes.hp.max,56);assert.equal(token.getFlag(ID,'horde').count,8);
 });
+
+test('split individuals are explicitly unmarked and population sync cannot overwrite native wounds',async()=>{
+ const {token}=fixture();const result=await splitToken(token);
+ for(const member of result.tokens){assert.equal(member.getFlag(ID,'horde').enabled,false);assert.equal(member.getFlag(ID,'population').detached,true);}
+ token.actor.system.attributes.hp.value=2;token.actor.system.attributes.hp.max=11;
+ const before={name:token.name,x:token.x,y:token.y,width:token.width};
+ await syncPopulation(token);
+ assert.equal(token.actor.system.attributes.hp.value,2);assert.equal(token.actor.system.attributes.hp.max,11);
+ assert.deepEqual({name:token.name,x:token.x,y:token.y,width:token.width},before);
+});

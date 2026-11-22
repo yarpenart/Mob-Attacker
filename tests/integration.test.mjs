@@ -516,3 +516,29 @@ test('defeated status updates do not rebuild or resize a horde token',async()=>{
  const token={getFlag:(_id,key)=>key==='population'?{}:null,update:async()=>{throw Error('unexpected token update');}};
  await populationActorUpdated({token,system:{attributes:{hp:{value:0}}}},{effects:['dead'],statuses:['dead']});
 });
+
+test('unmarked NPC native attacks and damage bypass Horde initiative and player turns',async()=>{
+ const config={event:{},ammunition:'arrow'},dialog={configure:true},message={rollMode:'blindroll'};
+ for(const current of [initiativeGoblin(2),{actor:{type:'character'}},null]){
+  owner.combatant=current;let calls=0;
+  const native=async(...args)=>{calls++;assert.equal(args[0],config);return ['native'];};
+  assert.deepEqual(await interceptAttack.call(activity,native,config,dialog,message),['native']);
+  assert.deepEqual(await interceptDamage.call(activity,native,config),['native']);
+  assert.equal(calls,2);assert.equal(flags.size,0);assert.equal(damageCalls.length,0);
+ }
+});
+test('a detached token overrides an actor Horde flag and bypasses optional unmarked prompts',async()=>{
+ const originalSettings=game.settings;
+ try{
+  game.settings={get:()=>true};owner.combatant=initiativeGoblin(2);
+  const token={getFlag:(_id,key)=>key==='horde'?{enabled:false}:key==='population'?{detached:true,initial:1}:null};
+  const npc={...actor,token,getFlag:()=>({enabled:true})};let calls=0;
+  await interceptAttack.call({...activity,actor:npc},async()=>calls++);
+  await interceptDamage.call({...activity,actor:npc},async()=>calls++);
+  assert.equal(calls,2);assert.equal(flags.size,0);
+ }finally{game.settings=originalSettings;}
+});
+test('pending Horde attack cannot reactivate an unmarked source',async()=>{
+ await assert.rejects(resolve({doc,actor,activity,options:{...opts,requireMarked:true}}),/npcOnly/);
+ assert.equal(flags.size,0);assert.equal(damageCalls.length,0);
+});

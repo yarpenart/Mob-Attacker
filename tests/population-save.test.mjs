@@ -3,7 +3,7 @@ import {test,beforeEach} from 'node:test';
 import {mockSettings} from './test-settings.mjs';
 beforeEach(()=>{globalThis.game={settings:mockSettings({hordeNaming:'plain'})};});
 import assert from 'node:assert/strict';
-import {updateMembers,livingCount,hordeSize,syncPopulation,syncHordeName,ID} from '../scripts/population.mjs';
+import {updateMembers,livingCount,hordeSize,syncPopulation,migrateSplitMembership,syncHordeName,ID} from '../scripts/population.mjs';
 import {saveCount,saveDamage,installSaves} from '../scripts/saves.mjs';
 globalThis.foundry={utils:{deepClone:structuredClone}};
 function update(target,data) {
@@ -194,4 +194,21 @@ test('an expired save form is rejected before changing token HP or writing resul
  const {doc,api,messages}=saveFixture();const hp=doc.actor.system.attributes.hp.value;
  await assert.rejects(api.resolveSave({doc,actor:doc.actor,options:{expectedScope:'a different encounter',dc:14,bonus:'4',ability:'dex',damage:'4'}}),/saveStale/);
  assert.equal(doc.actor.system.attributes.hp.value,hp);assert.equal(messages.length,1);assert.equal(doc.getFlag(ID,'population'),undefined);
+});
+
+test('an old Horde save card cannot damage a token after it is unmarked',async()=>{
+ const {doc,api}=saveFixture();
+ const {message}=await api.resolveSave({doc,actor:doc.actor,options:{dc:14,bonus:'4',ability:'dex',damage:'4',damageType:'fire',onSave:'half'}});
+ doc.flags[ID].horde.enabled=false;
+ const hp=doc.actor.system.attributes.hp.value;
+ await assert.rejects(api.apply(message),/saveStale/);
+ assert.equal(doc.actor.system.attributes.hp.value,hp);assert.equal(message.getFlag(ID,'save').status,'pending');
+});
+
+test('legacy split migration unmarks once without changing HP, position or later explicit opt-in',async()=>{
+ const doc=token(1);await syncPopulation(doc);doc.flags[ID].splitOrigin={initial:8};
+ const before=structuredClone(doc.actor.system);await migrateSplitMembership(doc);
+ assert.equal(doc.getFlag(ID,'horde').enabled,false);assert.equal(doc.getFlag(ID,'population').detached,true);
+ assert.deepEqual(doc.actor.system,before);
+ doc.flags[ID].horde.enabled=true;await migrateSplitMembership(doc);assert.equal(doc.getFlag(ID,'horde').enabled,true);
 });
