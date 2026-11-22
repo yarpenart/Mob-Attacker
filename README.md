@@ -1,4 +1,4 @@
-# YarpenArt: Mob Attacker — 0.5.8
+# YarpenArt: Mob Attacker — 0.5.9
 
 A **Foundry VTT v14 / D&D5e 5.3.3** module for running groups of NPCs with the 2014 Mob Attacks table. It counts hits, rolls native activity damage, manages Horde population HP and size, resolves group saving throws, and splits a Horde into individual tokens. Requires **libWrapper**. Dice So Nice is optional.
 
@@ -15,6 +15,14 @@ https://github.com/yarpenart/Mob-Attacker/releases/latest/download/module.json
 Alternatively, extract the `yarpenart-mob-attacker` folder into `Data/modules/`, or use the Forge module import workflow. Enable libWrapper and this module, then reload the world.
 
 Releases are published manually with `module.json` and `mob-attacker.zip` attached. The repository contains no automatic release workflow.
+
+## What changed in 0.5.9
+
+Unmarked NPC attacks, damage and saves use native D&D5e handling, including opportunity attacks during another creature's turn. Active Horde initiative no longer captures an ordinary NPC's action. The former prompt-on-unmarked-attacks setting is retired: explicitly mark a token or invoke a Horde command to opt in.
+
+Splitting now explicitly unmarks every resulting individual. Their wounds, rolled HP caps, names and encounter initiative memory remain available for merging, but passive metadata does not enable Horde attacks, saves, size updates or turn limits. Old Horde save cards and queued marked attacks cannot affect a token after it is unmarked. Explicitly mark an individual again to use Mob Attacks for it.
+
+Validation: 160 automated tests passed. Live Foundry validation is tracked separately in AUDIT.md.
 
 ## What changed in 0.5.8
 
@@ -149,7 +157,7 @@ The configuration shows current population, initial population, and the base HP 
 
 ## Initiative and attacks
 
-During a started combat, the active NPC combatant is the attacker, even when the attack is clicked on another NPC's open sheet. When possible, the module finds the equivalent item/activity on the active NPC. Otherwise, it uses the clicked activity as a template.
+During a started combat, marked Horde sheets can follow the active marked NPC combatant. The equivalent item/activity must exist on that combatant. Ordinary unmarked NPC sheets always use native actions and never redirect to the active Horde.
 
 Target one creature and use its normal weapon, spell attack, or attack ability. A marked Horde resolves immediately unless the per-attack dialog setting is enabled. If no single target is selected, a GM dialog opens.
 
@@ -213,11 +221,11 @@ Medium/Small tokens occupy 1×1 grid spaces; Large 2×2, Huge 3×3, and Gargantu
 
 ## Splitting a Horde
 
-Open the specific token's HUD and choose **Horde → Split/Merge Horde**, or use the same menu on its sheet or by right-clicking its initiative Horde button. The Horde must have at least two living members. All living members become individual tokens, still marked as members of the same Horde.
+Open the specific token's HUD and choose **Horde → Split/Merge Horde**, or use the same menu on its sheet or by right-clicking its initiative Horde button. The Horde must have at least two living members. All living members become ordinary, unmarked NPC tokens. Mark them again explicitly if they should participate in Mob Attacks.
 
 The original token and combatant are retained as the first member. Generated individual names follow the naming settings described above. New tokens receive independent HP, the creature's original size, and copies of its items/effects. Nearby free positions are used; splitting stops before changing anything if there is insufficient space within the scene. Placement avoids occupied token footprints but does not evaluate walls or terrain.
 
-By default, every member keeps the original Horde initiative. Set **Split Horde: initiative** to **Individual initiatives: restore saved or roll missing** to restore their recorded results for this combat, rolling only members without a recorded result. A new encounter starts a new initiative memory. Already spent attack slots for the current round are inherited, preventing free attacks by splitting after attacking. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
+By default, every member keeps the original Horde initiative. Set **Split Horde: initiative** to **Individual initiatives: restore saved or roll missing** to restore their recorded results for this combat, rolling only members without a recorded result. A new encounter starts a new initiative memory. Horde attack-slot history is retained for remerging during the same round; it does not restrict native actions by unmarked individuals. Target progress is retained. Equal-initiative ordering is handled by Foundry; the currently active combatant is preserved.
 
 **Split Horde: HP distribution**, inside **HP, split and merge rules**, is a world setting:
 

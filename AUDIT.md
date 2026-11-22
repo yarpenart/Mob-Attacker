@@ -1,3 +1,13 @@
+## 0.5.9 — Explicit Horde membership boundary
+
+- Native attacks and damage check the source token before initiative redirection; unmarked NPCs bypass Horde logic during NPC/player turns and outside combat.
+- Split outputs explicitly disable Horde membership while retaining passive HP/cap/identity data for merging.
+- Detached HP edits do not trigger population resizing or HP restoration; encounter casualty and initiative tracking remain passive.
+- Pending save damage and queued marked attacks reject detached/unmarked targets.
+- Legacy unmarked-attack prompts are retired; background size/name hooks skip ordinary tokens.
+- Automated validation: 160 tests passed (`node --test tests/*.test.mjs`).
+- Live Foundry/Forge tests: pending installation of this release; fixture results are not a live certification.
+
 # Workflow audit — 2026-10-26
 
 Reviewed release: **0.5.4**. Corrections: **0.5.5**.
