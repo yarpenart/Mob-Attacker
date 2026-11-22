@@ -65,8 +65,8 @@ async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=M
   const make=(i)=>{
     const data=foundry.utils.deepClone(template);delete data._id;delete data._stats;
     data.actorLink=false;data.name=generated[i].name;Object.assign(data,positions[i],{width:shape.width,height:shape.width});
-    data.flags??={};data.flags[ID]={...data.flags[ID],horde:{...config,count:1},
-      population:{...pop,baseHP:maxima[i],initial:1,current:1,soloName:data.name},naming:generated[i].meta,splitOrigin:provenance};delete data.flags[ID].splitLock;delete data.flags[ID].mergeLock;delete data.flags[ID].mergeOrigin;
+    data.flags??={};data.flags[ID]={...data.flags[ID],horde:{...config,enabled:false,count:1},
+      population:{...pop,detached:true,baseHP:maxima[i],initial:1,current:1,soloName:data.name},naming:generated[i].meta,splitMembershipVersion:1,splitOrigin:provenance};delete data.flags[ID].splitLock;delete data.flags[ID].mergeLock;delete data.flags[ID].mergeOrigin;
     if(battle)data.flags[ID].battle={...battle,ids:[livingIds[i]]};
     data.flags[ID].population.maxima=[maxima[i]];
     data.flags[ID].population.members=[hp[i]];
@@ -105,7 +105,7 @@ async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=M
     await doc.actor.update({'system.attributes.hp.max':maxima[0],'system.attributes.hp.value':hp[0],
       'system.traits.size':shape.size},{yaHordePopulation:true});
     await doc.update({name:first.name,x:first.x,y:first.y,width:first.width,height:first.height,
-      [`flags.${ID}.horde`]:first.flags[ID].horde,[`flags.${ID}.population`]:first.flags[ID].population,
+      [`flags.${ID}.splitMembershipVersion`]:1,[`flags.${ID}.horde`]:first.flags[ID].horde,[`flags.${ID}.population`]:first.flags[ID].population,
       ...(battle?{[`flags.${ID}.battle`]:first.flags[ID].battle}:{}),[`flags.${ID}.splitOrigin`]:provenance,[`flags.${ID}.naming`]:first.flags[ID].naming,[`flags.${ID}.-=mergeOrigin`]:null,[`flags.${ID}.naming.-=reservedNumbers`]:null});
     await syncHordeName(doc,1,first.flags[ID].population);
     for(const {combat} of newCombatants){

@@ -64,7 +64,7 @@ export async function syncPopulation(doc,options={}) {
   if (!actor.system?.attributes?.hp) return;
   const config=options.config ?? doc.getFlag(ID,'horde') ?? actor.getFlag(ID,'horde') ?? {};
   let population=foundry.utils.deepClone(doc.getFlag(ID,'population'));
-  if (!config.enabled && !population) return;
+  if (!config.enabled && (!population || population.detached)) return;
   if (doc.actorLink) {
     // A synthetic actor gives this token its own HP and size.
     await doc.update({actorLink:false,delta:{system:foundry.utils.deepClone(actor.toObject().system)}});
@@ -81,6 +81,7 @@ export async function syncPopulation(doc,options={}) {
       [`flags.${ID}.-=population`]:null});
     return;
   }
+  if(population?.detached)delete population.detached;
   const requested=Number(config.count ?? 1);
   const resize=!population || options.reconfigure && requested!==population.current || options.rerollHP;
   if (!population) {
@@ -136,5 +137,20 @@ export async function populationActorUpdated(actor,changes,options={}) {
   if (!hpChanged) return;
   const doc=actor.token;
   if(doc?.getFlag(ID,'mergeLock')||doc?.getFlag(ID,'splitLock'))return;
-  if (doc?.getFlag(ID,'population')) await syncPopulation(doc);
+  const config=doc?.getFlag(ID,'horde') ?? actor.getFlag(ID,'horde');
+  if(config?.enabled && doc?.getFlag(ID,'population'))await syncPopulation(doc);
+  else if(doc?.getFlag(ID,'battle') && doc.getFlag(ID,'population')?.detached){
+    // Passive encounter bookkeeping must never resize or rewrite a normal NPC.
+    const pop={...doc.getFlag(ID,'population'),members:[Number(actor.system.attributes.hp.value)],maxima:[Number(actor.system.attributes.hp.max)]};
+    await trackPopulation(doc,pop);
+  }
+}
+
+/** Upgrade old split outputs once, preserving their physical state and explicit later opt-ins. */
+export async function migrateSplitMembership(doc) {
+  const pop=doc?.getFlag(ID,'population');
+  if(!pop||pop.initial!==1||!doc.getFlag(ID,'splitOrigin')||doc.getFlag(ID,'splitMembershipVersion'))return;
+  const config=doc.getFlag(ID,'horde')??{};
+  await doc.update({[`flags.${ID}.horde`]:{...config,enabled:false,count:1},
+    [`flags.${ID}.population.detached`]:true,[`flags.${ID}.splitMembershipVersion`]:1});
 }

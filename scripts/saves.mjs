@@ -35,7 +35,8 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
   }
   async function open(actor,config={}) {
     requireAuthority();
-    const doc=sourceFor(actor);await syncPopulation(doc);actor=doc.actor ?? actor;
+    const doc=sourceFor(actor);if(!settings(doc,actor).enabled)throw Error(t('emptyHorde'));
+    await syncPopulation(doc);actor=doc.actor ?? actor;
     const s=settings(doc,actor);if (!s.enabled || !s.count) throw Error(t('emptyHorde'));
     await ensureCombat(game.combat);const expectedScope=memoryScope();
     const origin=sourceMessage(config.event),activity=origin?.getAssociatedActivity?.();
@@ -61,6 +62,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
     return queue(async()=>{
       requireAuthority();
       if(options.expectedScope&&options.expectedScope!==memoryScope())throw Error(t('saveStale'));
+      if(!settings(doc,actor).enabled)throw Error(t('emptyHorde'));
       await ensureCombat(game.combat);await syncPopulation(doc);actor=doc.actor ?? actor;
       const s=settings(doc,actor);if (!s.enabled || !s.count) throw Error(t('emptyHorde'));
       const scope=memoryScope();
@@ -101,7 +103,7 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
   }
   async function attachDamage(message,parts) {
     const data=message.getFlag(ID,'save');if (!data || data.scope!==memoryScope() || data.status!=='pending' || data.parts) return;
-    const doc=await fromUuid(data.target);if (!doc?.actor) return;
+    const doc=await fromUuid(data.target);if (!doc?.actor || !settings(doc,doc.actor).enabled) return;
     const damage=saveDamage(doc.actor,parts,data,data.onSave);
     await message.update({[`flags.${ID}.save`]:{...data,parts,damage},content:`<div class="ya-horde-card">${data.text}<p>${esc(t('saveDamageSummary',damage))}</p><button type="button" data-ya-horde-save-apply>${esc(t('applySaveDamage'))}</button></div>`});
   }
@@ -109,7 +111,9 @@ export function installSaves({t,esc,dialog,field,select,value,card,requireAuthor
     return queue(async()=>{
       requireAuthority();const data=message.getFlag(ID,'save');
       if (data?.scope!==memoryScope() || !data?.parts || data.status!=='pending') throw Error(t('saveAlreadyApplied'));
-      const doc=await fromUuid(data.target);await syncPopulation(doc);const actor=doc?.actor;
+      const doc=await fromUuid(data.target);
+      if(!doc?.actor||!settings(doc,doc.actor).enabled)throw Error(t('saveStale'));
+      await syncPopulation(doc);const actor=doc?.actor;
       if (data.scope!==memoryScope() || (data.memberIds&&JSON.stringify(data.memberIds)!==JSON.stringify(doc?.getFlag(ID,'battle')?.ids)) || !actor || settings(doc,actor).count!==data.count || actor.system.attributes.hp.value!==data.hp) throw Error(t('saveStale'));
       const damage=saveDamage(actor,data.parts,data,data.onSave);
       // Persist the lock before HP changes; never allow a second application on reload.

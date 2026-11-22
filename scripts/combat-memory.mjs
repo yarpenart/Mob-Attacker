@@ -41,7 +41,9 @@ export async function trackPopulation(doc,pop,{combat}={}){
 /** Record each singleton's current initiative before replacing its combatant. */
 export async function rememberInitiatives(docs,combat){
  for(const doc of docs){
-  const pop=doc.getFlag(ID,'population')??{baseHP:Number(doc.actor.system.attributes.hp.max),initial:1,current:1,baseName:doc.baseActor?.name??doc.actor.name,members:[Number(doc.actor.system.attributes.hp.value)]};
+  let pop=doc.getFlag(ID,'population');
+  if(pop?.detached)pop={...pop,members:[Number(doc.actor.system.attributes.hp.value)],maxima:[Number(doc.actor.system.attributes.hp.max)]};
+  pop??={baseHP:Number(doc.actor.system.attributes.hp.max),initial:1,current:1,baseName:doc.baseActor?.name??doc.actor.name,members:[Number(doc.actor.system.attributes.hp.value)]};
   await trackPopulation(doc,pop,{combat});
  }
  await enqueue(async()=>{
@@ -66,7 +68,7 @@ export async function restoreInitiatives(combat,docs){
 }
 export async function trackInitiative(row){
  const combat=row.parent,doc=row.token;if(!combat?.started||!doc||doc.getFlag(ID,'splitLock')||doc.getFlag(ID,'mergeLock'))return;
- if(doc.getFlag(ID,'horde')?.enabled)await rememberInitiatives([doc],combat);
+ if(doc.getFlag(ID,'horde')?.enabled||doc.getFlag(ID,'battle'))await rememberInitiatives([doc],combat);
 }
 /** Base creature names are independent of numbered token/Horde labels. */
 export function summaryByUnit(members){

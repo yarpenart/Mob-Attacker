@@ -5,7 +5,7 @@ import {settingsUI} from './settings.mjs';
 import {mergeTokens} from './merge.mjs';
 import {splitToken} from './split.mjs';
 import {installSaves} from './saves.mjs';
-import {syncPopulation,populationActorUpdated,SIZE_DEFAULTS,sizeThresholds,syncHordeName} from './population.mjs';
+import {syncPopulation,populationActorUpdated,migrateSplitMembership,SIZE_DEFAULTS,sizeThresholds,syncHordeName} from './population.mjs';
 import { TABLE, integer, planAttack, nextLane, parseCommand, parseMarkedRoll, serialQueue, damageAssignments, reserveTurn, bucketKey, resolveMob } from './logic.mjs';
 export const ID = 'yarpenart-mob-attacker';
 const enqueue = serialQueue();
@@ -45,6 +45,7 @@ function selectedSource() {
 export function attackContext(activity, fallbackActor=activity?.actor) {
   const combat=game.combat, current=combat?.started && combat.combatant;
   if (!current) return {doc:sourceFor(fallbackActor),actor:fallbackActor,activity};
+  if(current.token&&!settings(current.token,current.actor).enabled) return {doc:sourceFor(fallbackActor),actor:fallbackActor,activity};
   if (current.actor?.type!=='npc' || !current.token) throw new Error(t('activeNPC'));
   const actor=current.actor;
   if (activity && actor!==activity.actor) {
@@ -295,6 +296,7 @@ async function consumeAmmunition(activity, actor, options, attempts) {
 export async function resolve({doc,actor,activity,options}) {
   return enqueue(async () => {
     requireAuthority();
+    if(options.requireMarked&&!settings(doc,actor).enabled)throw Error(t('npcOnly'));
     const context=!options.opportunity && game.combat?.started && game.combat.combatant ? attackContext(activity,actor) : null;
     if (context) {
       if (options.turnGuard && JSON.stringify(options.turnGuard)!==JSON.stringify(context.guard)) throw new Error(t('turnChanged'));
@@ -313,7 +315,7 @@ export async function resolve({doc,actor,activity,options}) {
     const ac = Number(target.actor.system.attributes.ac.value);
     if (!Number.isFinite(ac)) throw new Error(t('acInvalid'));
     const state = ledger(owner);
-    const reservation=context ? reserveTurn(state,{combatant:context.guard.combatant,round:context.guard.round,
+    const reservation=context?.guard ? reserveTurn(state,{combatant:context.guard.combatant,round:context.guard.round,
       target:target.uuid,group:options.group,attacks:options.forceHit ? 1 : options.attacks,
       limit:options.attackLimit ?? settings(doc,actor).attackLimit ?? 1,lane:options.lane,forceHit:options.forceHit}) : null;
     const bonus = await finiteBonus(options.bonus,actor,visibilityMode('PRIVATE'));
@@ -321,7 +323,7 @@ export async function resolve({doc,actor,activity,options}) {
     if (!activity) new CONFIG.Dice.DamageRoll(options.damage, actor.getRollData());
     const profile=await damageProfile(activity,actor,options);
     // Turn slots stop duplicate attempts; all slots feed one target bucket.
-    const source=options.opportunity ? `${doc.uuid}::reaction:${foundry.utils.randomID()}` : owner.documentName === 'Combat' ? `${context?.guard.combatant ?? doc.uuid}::round:${owner.round}`
+    const source=options.opportunity ? `${doc.uuid}::reaction:${foundry.utils.randomID()}` : owner.documentName === 'Combat' ? `${context?.guard?.combatant ?? doc.uuid}::round:${owner.round}`
       : `${doc.uuid}::attempt:${foundry.utils.randomID()}`;
     const firstLane = reservation?.firstLane ?? options.lane ?? nextLane(state,options.group,source);
     const plans = [];
@@ -395,6 +397,13 @@ export async function resolve({doc,actor,activity,options}) {
 }
 export async function interceptAttack(wrapped, config = {}, nativeDialog = {}, message = {}) {
   if (this.actor?.type !== 'npc') return wrapped(config,nativeDialog,message);
+  // Never redirect an ordinary NPC's action to the Horde whose turn is active.
+  let source;
+  try {source=sourceFor(this.actor);} catch(error) {
+    if(this.actor.getFlag(ID,'horde')?.enabled)throw error;
+    return wrapped(config,nativeDialog,message);
+  }
+  if(!settings(source,this.actor).enabled)return wrapped(config,nativeDialog,message);
   const context=attackContext(this),{doc,actor}=context,activity=context.activity ?? this,s=settings(doc,actor);
   if (config.hordeForceHit && !s.enabled) throw new Error(t('npcOnly'));
   if (!s.enabled && (!game.user.isGM || !game.settings.get(ID,'promptUnmarked'))) return wrapped(config,nativeDialog,message);
@@ -414,6 +423,7 @@ export async function interceptAttack(wrapped, config = {}, nativeDialog = {}, m
   }
   if (!options.target) throw new Error(t('chooseTarget'));
   options.rollMode = message.rollMode ?? options.rollMode;
+  options.requireMarked=true;
   options.turnGuard=context.guard;
   await resolve({doc,actor,activity,options});
   // Deliberately no fabricated d20 rolls or critical-hit events.
@@ -425,8 +435,12 @@ export async function interceptDamage(wrapped,config={},...args) {
     return wrapped(clean,...args);
   }
   if (this.actor?.type!=='npc') return wrapped(config,...args);
-  const context=attackContext(this);
-  if (!settings(context.doc,context.actor).enabled) return wrapped(config,...args);
+  let source;
+  try {source=sourceFor(this.actor);} catch(error) {
+    if(this.actor.getFlag(ID,'horde')?.enabled)throw error;
+    return wrapped(config,...args);
+  }
+  if (!settings(source,this.actor).enabled) return wrapped(config,...args);
   ui.notifications.warn(t('damageThroughAttack'));
   return null;
 }
@@ -441,7 +455,7 @@ export async function opportunityAttack(doc) {
   const activity=activities[Number(picked)];
   const options=await attackDialog({doc,actor,activity,config:{}});
   if (!options || options==='cancel' || !options.enabled) return;
-  return resolve({doc,actor,activity,options:{...options,attacks:1,opportunity:true,remember:false}});
+  return resolve({doc,actor,activity,options:{...options,attacks:1,opportunity:true,remember:false,requireMarked:true}});
 }
 export async function forceFromSheet(actor) {
   requireAuthority();
@@ -580,7 +594,7 @@ function scheduleSizes() {
     if(!authority())return;
     for(const base of Object.keys(SIZE_DEFAULTS))sizeThresholds(base);
     for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {
-      if(token.getFlag(ID,'population'))await syncPopulation(token);
+      if(settings(token).enabled&&token.getFlag(ID,'population'))await syncPopulation(token);
     }
   })(),250);
 }
@@ -619,7 +633,7 @@ export const settingsPanels=settingsUI({t,esc,dialog,field,select,check,value,re
 Hooks.once('init',() => {
   settingsPanels.register();
   game.settings.register(ID,'language',{name:'HORDE.language',scope:'client',config:true,type:String,choices:{en:'English',pl:'Polski'},default:'en',onChange:loadLanguage});
-  game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:true,type:Boolean,default:false});
+  game.settings.register(ID,'promptUnmarked',{name:'HORDE.promptUnmarked',hint:'HORDE.promptHint',scope:'world',config:false,type:Boolean,default:false});
   game.settings.register(ID,'mergeInitiative',{name:'HORDE.mergeInitiative',hint:'HORDE.mergeInitiativeHint',scope:'world',config:false,type:String,choices:{highest:'HORDE.initiativeHighest',median:'HORDE.initiativeMedian',lowest:'HORDE.initiativeLowest'},default:'median'});
   game.settings.register(ID,'splitInitiative',{name:'HORDE.splitInitiative',hint:'HORDE.splitInitiativeHint',scope:'world',config:false,type:String,choices:{shared:'HORDE.splitInitiativeShared',reroll:'HORDE.splitInitiativeReroll'},default:'shared'});
   game.settings.register(ID,'splitHP',{name:'HORDE.splitHP',hint:'HORDE.splitHPHint',scope:'world',config:false,type:String,choices:{equal:'HORDE.splitEqual',random:'HORDE.splitRandom'},default:'equal'});
@@ -653,13 +667,14 @@ Hooks.once('ready',async () => {
   }));
   Hooks.on('deleteCombat',guard(combat=>authority()&&finishCombat(combat,{deleted:true,t,esc})));
   Hooks.on('updateActor',guard((actor,changes,options)=>authority() && populationActorUpdated(actor,changes,options)));
-  Hooks.on('createCombatant',guard(c=>authority() && c.token?.getFlag(ID,'population') && syncHordeName(c.token,settings(c.token).count)));
+  Hooks.on('createCombatant',guard(c=>authority() && c.token?.getFlag(ID,'horde')?.enabled && c.token.getFlag(ID,'population') && syncHordeName(c.token,settings(c.token).count)));
   if(authority()){
+    for(const scene of game.scenes?.values?.()??[])for(const token of scene.tokens.values())await migrateSplitMembership(token);
     await migrateSceneNames();
     for(const combat of game.combats?.values?.()??[])if(combat.started){await ensureCombat(combat);for(const row of combat.combatants.values())if(row.token?.getFlag(ID,'horde')?.enabled)await syncPopulation(row.token);}
   }
   if(authority())for(const scene of game.scenes?.values?.() ?? [])for(const token of scene.tokens.values()) {
-    const population=token.getFlag(ID,'population');if(population)await syncHordeName(token,settings(token).enabled ? population.current : 1,population);
+    const population=token.getFlag(ID,'population');if(population&&settings(token).enabled)await syncHordeName(token,population.current,population);
   }
   Hooks.on('renderCombatTracker',renderTracker);
   Hooks.on('renderActorSheetV2',renderSheet);
