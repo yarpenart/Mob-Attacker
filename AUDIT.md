@@ -1,3 +1,7 @@
+## 0.5.10 — Rolled HP at combat start
+
+Population synchronization and split share a per-token queue. Splitting waits for any in-flight initialization, and subsequent synchronization reads the post-split state. Existing tokens with aggregate HP above their saved member caps are brought back within those caps without rerolling. Regression tests cover the overlapping operations and a 29 HP token with saved caps of 7, 6 and 9.
+
 ## 0.5.9 — Explicit Horde membership boundary
 
 - Native attacks and damage check the source token before initiative redirection; unmarked NPCs bypass Horde logic during NPC/player turns and outside combat.
