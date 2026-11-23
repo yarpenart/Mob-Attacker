@@ -2,7 +2,7 @@ import {withTokenOperation} from './token-operations.mjs';
 import {restoreInitiatives,rememberInitiatives} from './combat-memory.mjs';
 import {splitNames} from './naming.mjs';
 import {integer} from './logic.mjs';
-import {ID,syncPopulation,hordeSize,syncHordeName} from './population.mjs';
+import {ID,withSyncedPopulation,hordeSize,syncHordeName} from './population.mjs';
 /** Bounded integer partitions preserve the total in both modes. */
 export function distributeHP(total,count,max,mode='equal',random=Math.random) {
   integer(count,1,200,'count');
@@ -43,13 +43,11 @@ export function splitPositions(doc,count,width,scene) {
 }
 export async function splitToken(doc,options={}){
  options.requireAuthority?.();
- return withTokenOperation([doc],()=>splitTokenWork(doc,options));
+ const initiativeMode=options.initiativeMode??game.settings.get(ID,'splitInitiative')??'shared';
+ if(!['shared','reroll'].includes(initiativeMode))throw Error('Invalid split Horde initiative mode');
+ return withTokenOperation([doc],()=>withSyncedPopulation(doc,()=>splitTokenWork(doc,{...options,initiativeMode})));
 }
-async function splitTokenWork(doc,{mode='equal',requireAuthority=()=>{},random=Math.random,initiativeMode}={}) {
-  requireAuthority();
-  initiativeMode??=game.settings.get(ID,'splitInitiative')??'shared';
-  if(!['shared','reroll'].includes(initiativeMode))throw Error('Invalid split Horde initiative mode');
-  await syncPopulation(doc);
+async function splitTokenWork(doc,{mode='equal',random=Math.random,initiativeMode}) {
   const pop=foundry.utils.deepClone(doc.getFlag(ID,'population')),config=foundry.utils.deepClone(doc.getFlag(ID,'horde'));
   if(!config?.enabled||!pop||pop.current<2)throw Error('A Horde needs at least two living creatures to split');
   if(doc.getFlag(ID,'splitLock'))throw Error('This Horde is already being split');
