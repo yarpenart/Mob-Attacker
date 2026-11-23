@@ -119,6 +119,39 @@ test('equal and random HP distribution respect different stored per-creature max
  const hp=distributeHP(total,3,[1,5,9],mode);assert.equal(hp.reduce((a,b)=>a+b,0),total);assert.ok(hp.every((n,i)=>n>=1&&n<=[1,5,9][i]));
  }
 });
+test('a split waits for in-flight rolled HP initialization and preserves that single set of rolls',async()=>{
+ const {token,actor}=fixture({count:3,hp:7});
+ delete token.flags[ID].population;
+ Object.assign(actor.system.attributes.hp,{max:7,formula:'2d6'});
+ game.settings.values.set('hordeHPMode','rolled');
+ const maxima=[7,6,9];
+ let rolls=0;
+ const gate=Promise.withResolvers(), rolling=Promise.withResolvers();
+ const previousRoll=globalThis.Roll;
+ globalThis.Roll=class {
+  async evaluate(){const i=rolls++;rolling.resolve();await gate.promise;return {total:maxima[i]};}
+ };
+ actor.getRollData=()=>({});
+ try {
+  const initializing=syncPopulation(token);
+  await rolling.promise;
+  const splitting=splitToken(token);
+  gate.resolve();
+  const [population,result]=await Promise.all([initializing,splitting]);
+  assert.equal(rolls,3);
+  assert.deepEqual(population.maxima,maxima);
+  assert.deepEqual(result.tokens.map(doc=>doc.actor.system.attributes.hp.max),maxima);
+  assert.equal(result.hp.reduce((sum,hp)=>sum+hp,0),22);
+ } finally {globalThis.Roll=previousRoll;}
+});
+test('split reconciles an old aggregate HP value that exceeds the saved creature caps',async()=>{
+ const {token,actor}=fixture({count:3,hp:29});
+ actor.system.attributes.hp.max=29;
+ Object.assign(token.flags[ID].population,{initial:3,maxima:[7,6,9],members:[7,6,9]});
+ const result=await splitToken(token);
+ assert.deepEqual(result.hp,[7,6,9]);
+ assert.deepEqual(result.tokens.map(doc=>doc.actor.system.attributes.hp.max),[7,6,9]);
+});
 test('splitting a Horde with rolled maxima gives each member its actual maximum',async()=>{
  const {token,scene}=fixture({count:3,hp:16});game.combat=null;game.combats=new Map();
  token.actor.system.attributes.hp.max=16;token.flags[ID].population={...token.flags[ID].population,initial:3,current:3,maxima:[3,8,5],members:[3,8,5]};
