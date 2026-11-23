@@ -58,8 +58,26 @@ export async function rollMemberMaxima(actor,count) {
   }
   return values;
 }
-export async function syncPopulation(doc,options={}) {
+const populationWrites = new WeakMap();
+
+/** Keep HP and population flags consistent across concurrent updates to one token. */
+export async function withSyncedPopulation(doc, work, options={}) {
   if (!doc?.actor || doc.documentName==='Actor') return;
+  const previous = populationWrites.get(doc);
+  const pending = (previous ?? Promise.resolve()).catch(() => {}).then(async () => {
+    const population = await syncPopulationState(doc, options);
+    return work ? work(population) : population;
+  });
+  populationWrites.set(doc, pending);
+  try { return await pending; }
+  finally { if (populationWrites.get(doc) === pending) populationWrites.delete(doc); }
+}
+
+export function syncPopulation(doc,options={}) {
+  return withSyncedPopulation(doc, null, options);
+}
+
+async function syncPopulationState(doc,options) {
   let actor=doc.actor;
   if (!actor.system?.attributes?.hp) return;
   const config=options.config ?? doc.getFlag(ID,'horde') ?? actor.getFlag(ID,'horde') ?? {};
@@ -111,11 +129,13 @@ export async function syncPopulation(doc,options={}) {
     }
   }
   if(!Array.isArray(population.maxima))population.maxima=Array(population.initial).fill(population.baseHP);
+  const max=population.maxima.reduce((a,b)=>a+b,0);
+  // Repair a stale aggregate HP value left by an earlier competing initialization.
+  currentHP=Math.min(currentHP,max);
   if(!Array.isArray(population.members))population.members=updateMembers(Array(population.initial).fill(population.baseHP),currentHP,population.baseHP);
   if(Array.isArray(population.members)) {population.members=updateMembers(population.members,currentHP,population.maxima??population.baseHP);population.current=population.members.filter(hp=>hp>0).length;}
   else population.current=livingCount(currentHP,population.baseHP,population.initial);
   const shape=hordeSize(population.current,population.baseSize);
-  const max=population.maxima?.reduce((a,b)=>a+b,0)??population.baseHP*population.initial;
   const actorUpdate={};
   if (hp.max!==max) actorUpdate['system.attributes.hp.max']=max;
   if (hp.value!==currentHP) actorUpdate['system.attributes.hp.value']=currentHP;
